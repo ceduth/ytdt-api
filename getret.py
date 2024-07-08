@@ -1,6 +1,4 @@
 import pandas as pd
-import os
-import httplib2
 from googleapiclient.discovery import build
 from oauth2client.file import Storage
 from oauth2client.client import flow_from_clientsecrets
@@ -23,12 +21,12 @@ def get_authenticated_service():
         credentials = run_flow(flow, storage, flags)
     return build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
 
-def get_audience_retention(youtube_analytics, video_id):
+def get_audience_retention(youtube_analytics, video_id, year):
     # Call the YouTube Analytics API to fetch audience retention
     response = youtube_analytics.reports().query(
         ids='channel==UCCtcQHR6-mQHQh6G06IPlDA',
-        startDate='2021-01-01',
-        endDate='2024-01-01',
+        startDate=f'{year}-01-01',
+        endDate=f'{year+1}-01-01',
         metrics='audienceWatchRatio',
         dimensions='elapsedVideoTimeRatio',
         filters=f'video=={video_id}',
@@ -50,27 +48,29 @@ def process_videos(file_path):
     data = pd.read_csv(file_path)
     results = []
 
-    for index, row in data.iterrows():
-        video_id = row['Video ID']
-        target_ratio = float(row['ElapsedVideoTimeRatio'].strip('%')) / 100  # Convert percentage to decimal
+    for year in range(2010, 2025):
+        for index, row in data.iterrows():
+            video_id = row['Video ID']
+            target_ratio = float(row['ElapsedVideoTimeRatio'].strip('%')) / 100  # Convert percentage to decimal
 
-        retention_data = get_audience_retention(youtube_analytics, video_id)
-        if not retention_data.empty:
-            closest_watch_ratio = find_closest_ratio(retention_data, target_ratio)
-        else:
-            closest_watch_ratio = None  # Set to None if no data is found
+            retention_data = get_audience_retention(youtube_analytics, video_id, year)
+            if not retention_data.empty:
+                closest_watch_ratio = find_closest_ratio(retention_data, target_ratio)
+            else:
+                closest_watch_ratio = None  # Set to None if no data is found
 
-        # Retain original data and update the audienceWatchRatio
-        results.append([
-            video_id, 
-            row['ElapsedVideoTimeRatio'], 
-            closest_watch_ratio, 
-            row['Total Views'], 
-            row['Retained Views']
-        ])
+            # Retain original data and update the audienceWatchRatio
+            results.append([
+                video_id, 
+                row['ElapsedVideoTimeRatio'], 
+                closest_watch_ratio, 
+                row['Total Views'], 
+                row['Retained Views'],
+                year  # Include the year
+            ])
 
     # Save results with updated audienceWatchRatio
-    column_names = ['Video ID', 'ElapsedVideoTimeRatio', 'audienceWatchRatio', 'Total Views', 'Retained Views']
+    column_names = ['Video ID', 'ElapsedVideoTimeRatio', 'AudienceWatchRatio', 'Total Views', 'Retained Views', 'Year']
     result_df = pd.DataFrame(results, columns=column_names)
     result_df.to_csv('output_updated.csv', index=False)
 
