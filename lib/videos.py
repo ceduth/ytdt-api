@@ -5,11 +5,18 @@ Based on YouTube Data API (v3)
 
 """
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
 import pandas as pd 
 import logging
 from glom import glom
 from dataclasses import dataclass, asdict, fields
 from googleapiclient.discovery import build
+
+# TODO: refactor pytube calls to download using the YT API
+from pytube import YouTube
+from pytube.exceptions import RegexMatchError, VideoUnavailable
 
 
 logging.basicConfig(level=logging.INFO)
@@ -34,9 +41,33 @@ class Video:
     return [field.name for field in fields(Video)]
 
 
-
 api_key = "AIzaSyCdx2AVAwQxFu5c69HpLQW8MQkexLXOw18"
 youtube = build('youtube', 'v3', developerKey=api_key)
+
+
+def download_youtube_video(video_id, csv_output_path="videos/", dry_run=False):
+
+    try:
+
+        status, msg = -1, ""
+        yt = YouTube(f"https://www.youtube.com/watch?v={video_id}")
+        yt.check_availability()
+        status, msg = 0, f"Video is available : {yt.title}"
+
+        if not dry_run:
+            stream = yt.streams.get_highest_resolution()
+            stream.download(csv_output_path)
+            status, msg = 0, f"Successfully downloaded : {yt.title}"
+
+    except RegexMatchError:
+        status, msg = -1, "Invalid YouTube URL." 
+        # logging.debug(msg)
+    except VideoUnavailable as e:
+        status, msg =  0, "Video Unavailable"
+    except Exception as e:
+        status, msg = -1, str(e)
+    
+    return status, msg
 
 
 def get_video_data(video_ids):
@@ -88,7 +119,6 @@ def get_video_data(video_ids):
       yield msg, video
 
 
-    
 
 if __name__ == '__main__':
     

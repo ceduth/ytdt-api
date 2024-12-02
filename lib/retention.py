@@ -74,6 +74,8 @@ def process_videos(file_path):
     result_df = pd.DataFrame(results, columns=column_names)
     result_df.to_csv('output_updated.csv', index=False)
 
-# Example usage
-file_path = 'sheets_yt_jfm_retention - Sheet6.csv'
-process_videos(file_path)
+
+if __name__ == "__main__":
+    # Example usage
+    file_path = 'sheets_yt_jfm_retention - Sheet6.csv'
+    process_videos(file_path)
