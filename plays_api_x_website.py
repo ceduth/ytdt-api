@@ -50,5 +50,5 @@ if __name__ == '__main__':
 
   # Write xls file
   if not args.dry_run:
-    df.rename(columns={ 'views': 'views_count_scraped' })
+    df.rename(columns={ 'views': 'views_count_scraped' }, inplace=True)
     df.to_excel(csv_output_path, engine='xlsxwriter', index=False)
