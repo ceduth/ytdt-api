@@ -1,5 +1,3 @@
-import pandas as pd 
-
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
@@ -29,6 +27,12 @@ def query_bigquery(query):
 
 
 if __name__ == "__main__":
+  """
+  Example usage.
+  """
+  
+  import pandas as pd 
+
 
   dup_negative_plays_video_ids = []
   df_out = pd.DataFrame(columns=['video_id', 'plays', 'negative_plays'])

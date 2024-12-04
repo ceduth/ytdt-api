@@ -7,10 +7,12 @@ playwright install  # To download browser binaries
 import asyncio
 import json
 import re
+from urllib.parse import urlparse, urljoin
 from playwright.async_api import async_playwright
 
 
 class YouTubeVideoScraper:
+
     def __init__(self):
         self.browser = None
         self.page = None
@@ -56,6 +58,13 @@ class YouTubeVideoScraper:
             return int(count_str)
         except ValueError:
             return 0
+    
+    def _make_absolute_url(self, url):
+        """Whether url is FQDN and not relative"""
+        if not bool(urlparse(url).netloc):
+            url = urljoin('https://www.youtube.com', url)
+        return url
+    
 
     async def _extract_channel_details(self, page):
         """
@@ -79,13 +88,18 @@ class YouTubeVideoScraper:
         try:
             # Try to extract channel URL and ID
             channel_link = await page.query_selector('yt-formatted-string.ytd-channel-name a')
-            if channel_link:
-                channel_url = await channel_link.get_attribute('href')
-                # Extract channel ID from URL
-                channel_id_match = re.search(r'/channel/([^/]+)', channel_url)
-                if channel_id_match:
-                    channel_details["channel_id"] = channel_id_match.group(1)
+
+            if not channel_link:
+                raise Exception("Couldn't extract channel link")
+
+            channel_url = await channel_link.get_attribute('href')
+            channel_url = self._make_absolute_url(channel_url)
             
+            # Extract channel ID from URL
+            channel_id_match = re.search(r'/@([^/]+)', channel_url)
+            if channel_id_match:
+                channel_details["channel_id"] = channel_id_match.group(1)
+        
             # Navigate to About page for more details
             await page.goto(f"{channel_url}/about", wait_until='networkidle', timeout=30000)
             
@@ -145,8 +159,8 @@ class YouTubeVideoScraper:
             video_url = f"https://www.youtube.com/watch?v={video_id}"
             await page.goto(video_url, wait_until='networkidle', timeout=30000)
             
-            # Wait for video info to load
-            await page.wait_for_selector('div#info', timeout=10000)
+            # Wait for video info to load. This is bug-prone!
+            # await page.wait_for_selector('div#info', timeout=10000)
             
             # Extract video title
             try:
@@ -208,9 +222,11 @@ class YouTubeVideoScraper:
             except Exception:
                 channel_name = "Unknown Channel"
             
+            # TODO: this is unstable
             # Extract additional channel details
-            channel_details = await self._extract_channel_details(page)
-            
+            # channel_details = await self._extract_channel_details(page)
+            channel_details = {}
+
             # Compile comprehensive video statistics
             video_stats = {
                 "video_id": video_id,
@@ -250,32 +266,58 @@ class YouTubeVideoScraper:
         return await asyncio.gather(*tasks)
 
 
-async def main(video_ids):
+async def scrape_multiple_videos(video_ids, verbose=True):
+    """
+   [{   "video_id": "9eHseYggb-I",
+        "title": "Introducing JESUS: A new, animated family film",
+        "views": 5250,
+        "likes": 0,
+        "comments": 0,
+        "shares": 0,
+        "dislikes": 0,
+        "upload_date": "",
+        "channel_name": "Jesus Film",
+        "url": "https://www.youtube.com/watch?v=9eHseYggb-I",
+        "channel_id": "Unknown",
+        "subscribers_gained": 0,
+        "subscribers_lost": 0,
+        "country": "Unknown",
+        "language_name": "Unknown",
+        "language_code": "Unknown"
+    },...]
+    
+    """
     
     # Create scraper and scrape videos
     async with YouTubeVideoScraper() as scraper:
         # Scrape multiple videos concurrently
         results = await scraper.scrape_multiple_videos(video_ids)
+        return results
         
-        # Print or save results
-        for result in results:
-            print(json.dumps(result, indent=2))
-            print("\n---\n")
+        # # Print or save results
+        # if verbose:
+        #     for result in results:
+        #         print(json.dumps(result, indent=2))
+        #         print("\n---\n")
 
-        # Optionally, save to a JSON file
-        with open('data/youtube_video_stats.json', 'w', encoding='utf-8') as f:
-            json.dump(results, f, indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":
+    """
+    Example usage.
+    """
 
     # Example usage / video IDs (replace with actual video IDs)
     video_ids = [
-        "uuo2KqoJxsc",
+        "9eHseYggb-I"
+        # "uuo2KqoJxsc",
         # "UJfX-ZrDZmU",
         # "0_jC8Lg-oxY"
     ]
 
-    asyncio.run(main(video_ids))
+    # Optionally, save results to a JSON file
+    results = asyncio.run(scrape_multiple_videos(video_ids))
+    with open('data/youtube_video_stats.json', 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2, ensure_ascii=False)
 
 
