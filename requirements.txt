@@ -1,4 +1,6 @@
 google-api-python-client==2.151.0
 pandas==2.2.3
+XlsxWriter==3.2.0
 asyncio==3.4.3
 playwright==1.49.0
+glom==24.11.0

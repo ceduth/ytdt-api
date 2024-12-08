@@ -12,7 +12,7 @@ from dataclasses import dataclass, asdict, fields
 from googleapiclient.discovery import build
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
 
 @dataclass
@@ -41,6 +41,8 @@ youtube = build('youtube', 'v3', developerKey=api_key)
 
 def get_video_data(video_ids):
   """
+  Rwturn data (metadata and statistics) for a single video.
+
   Note: Retrieval may fail for some videos so output may have length < len(video_ids)
   Cost of retrieving YT videos is 1 unit per 50 videos capped at 10k units/day.
   https://developers.google.com/youtube/v3/determine_quota_cost
@@ -83,7 +85,7 @@ def get_video_data(video_ids):
 
       except Exception as exc:
         msg, video = str(exc), None
-        logging.debug(f"Error extracting video {msg}")
+        logging.debug(f"""Error extracting video "{item['id']}": {msg}""")
 
       yield msg, video
 
