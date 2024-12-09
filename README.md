@@ -3,8 +3,22 @@
 
 ## Preps.
 
+1. Create virtual env
+
+```shell
+sudo apt-get update
+sudo apt-get install git -y
+sudo apt-get install python3-setuptools python3-dev build-essential python3-venv python3-pip -y
+
+python -m venv venv
+```
+
+2. Install dependencies
+
 ```bash
 pip install -r requirements.txt
+playwright install-deps
+playwright install
 ```
 
 

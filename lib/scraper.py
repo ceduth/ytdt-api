@@ -12,7 +12,7 @@ from urllib.parse import urlparse, urljoin
 from playwright.async_api import async_playwright
 
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 class YouTubeVideoScraper:
