@@ -8,6 +8,7 @@ import asyncio
 import json
 import re
 import logging
+from dateutil import parser
 from urllib.parse import urlparse, urljoin
 from playwright.async_api import async_playwright
 
@@ -88,16 +89,21 @@ class YouTubeVideoScraper:
         
         try:
             # Try to extract channel URL and ID
+            # $$('yt-formatted-string.ytd-channel-name a')[0].href in chrome devtools
             channel_link = await page.query_selector('yt-formatted-string.ytd-channel-name a')
+            print('--- channel_link:', channel_link)
 
             if not channel_link:
                 raise Exception("Couldn't extract channel link")
 
             channel_url = await channel_link.get_attribute('href')
             channel_url = self._make_absolute_url(channel_url)
+            print('--- channel_url:', channel_url)
             
             # Extract channel ID from URL
             channel_id_match = re.search(r'/@([^/]+)', channel_url)
+            print('--- channel_id_match:', channel_id_match)
+
             if channel_id_match:
                 channel_details["channel_id"] = channel_id_match.group(1)
         
@@ -150,8 +156,8 @@ class YouTubeVideoScraper:
         :returns dict: Detailed video statistics
         """
         try:
-            # Create a new page
-            page = await self.browser.new_page()
+            # Create a new page in new browser context
+            page = await self.browser.new_page(locale='en-US')
             
             # Navigate to the video page, wait for the page to fully load
             video_url = f"https://www.youtube.com/watch?v={video_id}"
@@ -208,10 +214,12 @@ class YouTubeVideoScraper:
             # Extract dislikes (no longer directly shown on YouTube)
             dislikes = 0  # Dislikes are hidden on YouTube
             
-            # Extract upload date
+            # Extract upload date. using locale='en-US' in browser context
+            # preferring locator api https://stackoverflow.com/a/76745106/4615806
             try:
-                date_element = await page.query_selector('div#info yt-formatted-string.ytd-video-primary-info-renderer')
-                upload_date = await date_element.inner_text() if date_element else "Unknown Date"
+                date_element = page.locator('div#info yt-formatted-string.ytd-video-primary-info-renderer')
+                upload_date = await date_element.all_inner_texts() if date_element else "Unknown Date"
+                upload_date = parser.parse(" ".join(upload_date), fuzzy=True)
             except Exception:
                 upload_date = "Unknown Date"
             
@@ -224,8 +232,8 @@ class YouTubeVideoScraper:
             
             # TODO: this is unstable
             # Extract additional channel details
-            # channel_details = await self._extract_channel_details(page)
-            channel_details = {}
+            channel_details = await self._extract_channel_details(page)
+            # channel_details = {}
 
             # Compile comprehensive video statistics
             video_stats = {
@@ -236,7 +244,7 @@ class YouTubeVideoScraper:
                 "comments": comments,
                 "shares": shares,
                 "dislikes": dislikes,
-                "upload_date": upload_date,
+                "upload_date": str(upload_date),
                 "channel_name": channel_name,
                 "url": video_url,
                 **channel_details  # Merge channel details
@@ -265,6 +273,9 @@ class YouTubeVideoScraper:
         {   "video_id": "9eHseYggb-I",
             "title": "Introducing JESUS: A new, animated family film",
             "views": 5250,
+            "channel_id": "Unknown",
+            "channel_name": "Jesus Film",
+            "url": "https://www.youtube.com/watch?v=9eHseYggb-I",
 
             # TODO 👇👇👇
             "likes": 0,
@@ -272,9 +283,6 @@ class YouTubeVideoScraper:
             "shares": 0,
             "dislikes": 0,
             "upload_date": "",
-            "channel_name": "Jesus Film",
-            "url": "https://www.youtube.com/watch?v=9eHseYggb-I",
-            "channel_id": "Unknown",
             "subscribers_gained": 0,
             "subscribers_lost": 0,
             "country": "Unknown",
@@ -314,10 +322,10 @@ if __name__ == "__main__":
 
     # Example usage / video IDs (replace with actual video IDs)
     video_ids = [
-        "9eHseYggb-I",
+        # "9eHseYggb-I",  # Video unavailable: This video is private
         "uuo2KqoJxsc",
-        "UJfX-ZrDZmU",
-        "0_jC8Lg-oxY"
+        # "UJfX-ZrDZmU",
+        # "0_jC8Lg-oxY"
     ]
 
     # Optionally, save results to a JSON file

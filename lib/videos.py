@@ -5,13 +5,16 @@ Based on YouTube Data API (v3)
 
 """
 
+import os
 import logging
 import logging
 from glom import glom
 from dataclasses import dataclass, asdict, fields
 from googleapiclient.discovery import build
+from dotenv import load_dotenv
 
 
+load_dotenv() 
 logging.basicConfig(level=logging.DEBUG)
 
 
@@ -34,7 +37,7 @@ class Video:
     return [field.name for field in fields(Video)]
 
 
-api_key = "AIzaSyCdx2AVAwQxFu5c69HpLQW8MQkexLXOw18"
+api_key = os.getenv("YT_API_KEY")
 youtube = build('youtube', 'v3', developerKey=api_key)
 
 
