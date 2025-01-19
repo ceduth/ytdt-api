@@ -21,17 +21,30 @@ playwright install-deps
 playwright install
 ```
 
+3. Setup envs
+
+Create an API key in the Console by clicking [Create credentials](https://console.cloud.google.com/apis/credentials)  > API key. 
+
+Note: Cost of retrieving YT videos is 1 unit per 50 videos capped at 10k units/day.
+https://developers.google.com/youtube/v3/determine_quota_cost
+
+
+```shell
+YT_API_KEY=XXXX...
+```
+
 
 ## script `plays_api_x_website`.
 
 Compares youtube api plays vs. youtube.com plays for every youtube video \
-*TODO*: add more fields than 'views_count'.
+*TODO*: add more fields eg. likes/dislikes, comments, shares, subscribers gained/lost, language, etc. 
 
 Usage: 
 ```
 plays_api_x_website.py 
   [-h] 
   [--csv_output_path CSV_OUTPUT_PATH] 
+  [--include_fields INCLUDE_FIELDS]
   [--ids_column IDS_COLUMN] 
   [--dry_run DRY_RUN] 
   csv_input_path
@@ -40,5 +53,6 @@ plays_api_x_website.py
 Example:
 ```bash
 chmod +x plays_api_x_website.py
-./plays_api_x_website.py data/videoids.csv
+./plays_api_x_website.py data/video-ids-three.csv \
+  --include_fields=published_at,upload_date,duration,view_count,scraped_published_at,scraped_upload_date,scraped_upload_date,scraped_duration,scraped_view_count
 ```

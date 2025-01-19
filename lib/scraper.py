@@ -4,13 +4,17 @@ pip install playwright
 playwright install  # To download browser binaries
 """
 
+from dataclasses import asdict
+import re
 import asyncio
 import json
-import re
 import logging
+
 from dateutil import parser
 from urllib.parse import urlparse, urljoin
 from playwright.async_api import async_playwright
+
+from .models import Video
 
 
 logging.basicConfig(level=logging.INFO)
@@ -91,18 +95,13 @@ class YouTubeVideoScraper:
             # Try to extract channel URL and ID
             # $$('yt-formatted-string.ytd-channel-name a')[0].href in chrome devtools
             channel_link = await page.query_selector('yt-formatted-string.ytd-channel-name a')
-            print('--- channel_link:', channel_link)
-
             if not channel_link:
                 raise Exception("Couldn't extract channel link")
 
-            channel_url = await channel_link.get_attribute('href')
-            channel_url = self._make_absolute_url(channel_url)
-            print('--- channel_url:', channel_url)
-            
             # Extract channel ID from URL
+            channel_url = await channel_link.get_attribute('href')
+            channel_url = self._make_absolute_url(channel_url)            
             channel_id_match = re.search(r'/@([^/]+)', channel_url)
-            print('--- channel_id_match:', channel_id_match)
 
             if channel_id_match:
                 channel_details["channel_id"] = channel_id_match.group(1)
@@ -165,8 +164,10 @@ class YouTubeVideoScraper:
             
             # Wait for video info to load. This is bug-prone!
             # await page.wait_for_selector('div#info', timeout=10000)
+            # await page.wait_for_selector('video') # misses view_count, upload_date!
+            
             # Giving some time for additional content to load
-            await page.wait_for_timeout(10000)
+            await page.wait_for_timeout(10000)      # reliable, but slower???  
             
             # Extract video title
             try:
@@ -179,10 +180,10 @@ class YouTubeVideoScraper:
             try:
                 view_element = await page.query_selector('div#info span.ytd-video-view-count-renderer')
                 view_text = await view_element.inner_text() if view_element else "0 views"
-                views = self._parse_count(view_text.split()[:-1])
+                view_count = self._parse_count(view_text.split()[:-1])
             except Exception as e:
                 logging.debug(f'Could not extract views for video "{video_id}": {e}')
-                views = 0
+                view_count = 0
             
             # Extract likes count
             try:
@@ -222,7 +223,10 @@ class YouTubeVideoScraper:
                 upload_date = parser.parse(" ".join(upload_date), fuzzy=True)
             except Exception:
                 upload_date = "Unknown Date"
-            
+
+            # Extract duration from iso8601 into seconds
+            duration = await page.evaluate("""document.querySelector('meta[itemprop=\"duration\"]').content""")
+
             # Extract channel name
             try:
                 channel_element = await page.query_selector('yt-formatted-string.ytd-channel-name a')
@@ -239,18 +243,21 @@ class YouTubeVideoScraper:
             video_stats = {
                 "video_id": video_id,
                 "title": video_title,
-                "views": views,
+                "duration": duration,
+                "view_count": view_count,
                 "likes": likes,
                 "comments": comments,
                 "shares": shares,
                 "dislikes": dislikes,
                 "upload_date": str(upload_date),
+                "published_at": '',
                 "channel_name": channel_name,
                 "url": video_url,
+                "thumbnail_url": '',
                 **channel_details  # Merge channel details
             }
             
-            return video_stats
+            return Video(**video_stats)
         
         except Exception as e:
             logging.debug(f'Error scraping video "{video_id}": {e}')
@@ -262,7 +269,7 @@ class YouTubeVideoScraper:
 
     async def scrape_multiple_videos(self, video_ids):
         """
-        Scrape statistics for multiple videos.
+        Scrape statistics for multiple videos concurrently.
         Uses Playwight automation to wait on Javascript, pop ups, etc.
 
         :param list video_ids: List of YouTube video IDs
@@ -270,24 +277,28 @@ class YouTubeVideoScraper:
 
         TODO: async generator -> yield datum one by one not to compromise entire result set
 
-        {   "video_id": "9eHseYggb-I",
-            "title": "Introducing JESUS: A new, animated family film",
-            "views": 5250,
-            "channel_id": "Unknown",
-            "channel_name": "Jesus Film",
-            "url": "https://www.youtube.com/watch?v=9eHseYggb-I",
+        {
+            "video_id": "uuo2KqoJxsc",
+            "title": "God's Rescue Plan",
+            "duration": "PT2H30M",
+            "published_at": "",
+            "upload_date": "2023-04-13 00:00:00",
+            "view_count": 4597725,
+            "url": "https://www.youtube.com/watch?v=uuo2KqoJxsc",
+            "channel_id": "Godlife",
+            "channel_name": "GodLife.com",
 
-            # TODO 👇👇👇
+            # TODO: Not implemented 👇👇👇
+            "language_name": "Unknown",
+            "language_code": "Unknown",
+            "thumbnail_url": "",
+            "country": "Unknown",
             "likes": 0,
             "comments": 0,
             "shares": 0,
             "dislikes": 0,
-            "upload_date": "",
             "subscribers_gained": 0,
             "subscribers_lost": 0,
-            "country": "Unknown",
-            "language_name": "Unknown",
-            "language_code": "Unknown"
         }
         """
         tasks = [self.scrape_video_stats(video_id) for video_id in video_ids]
@@ -299,15 +310,13 @@ async def scrape_multiple_videos(video_ids, verbose=False):
     Scrape videos from Youtube website.
     """
     
-    # Create scraper and scrape videos
+    # Create scraper and scrape videos concurrently
     async with YouTubeVideoScraper() as scraper:
-        # Scrape multiple videos concurrently
-        results = await scraper.scrape_multiple_videos(video_ids)
-        
-        # Print or save results
+
+        results = await scraper.scrape_multiple_videos(video_ids)        
         if verbose:
             for result in results:
-                print(json.dumps(result, indent=2))
+                print(json.dumps(asdict(result), indent=2))
                 print("\n---\n")
                 
         return results
@@ -331,6 +340,7 @@ if __name__ == "__main__":
     # Optionally, save results to a JSON file
     results = asyncio.run(scrape_multiple_videos(video_ids, verbose=True))
     with open('data/youtube_video_stats.json', 'w', encoding='utf-8') as f:
-        json.dump(results, f, indent=2, ensure_ascii=False)
+        # json.dump(results, f, indent=2, ensure_ascii=False)
+        pass
 
 

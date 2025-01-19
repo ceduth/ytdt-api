@@ -5,3 +5,4 @@ asyncio==3.4.3
 playwright==1.49.0
 glom==24.11.0
 python-dotenv==1.0.1
+isodate==0.7.2
