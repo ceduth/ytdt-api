@@ -10,8 +10,10 @@ import asyncio
 import json
 import logging
 
+
 from dateutil import parser
 from urllib.parse import urlparse, urljoin
+from tqdm.asyncio import tqdm_asyncio
 from playwright.async_api import async_playwright
 
 from .models import Video
@@ -302,7 +304,7 @@ class YouTubeVideoScraper:
         }
         """
         tasks = [self.scrape_video_stats(video_id) for video_id in video_ids]
-        return await asyncio.gather(*tasks)
+        return await tqdm_asyncio.gather(*tasks, desc=f'scraping {len(video_ids)} videos')
 
 
 async def scrape_multiple_videos(video_ids, verbose=False):

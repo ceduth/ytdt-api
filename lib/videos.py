@@ -7,8 +7,8 @@ Based on YouTube Data API (v3)
 
 import os
 import logging
-import logging
 from glom import glom
+from tqdm import tqdm
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
@@ -23,7 +23,7 @@ api_key = os.getenv("YT_API_KEY")
 youtube = build('youtube', 'v3', developerKey=api_key)
 
 
-def get_video_data(video_ids):
+def get_multiple_videos(video_ids):
   """
   Rwturn data (metadata and statistics) for a single video.
 
@@ -50,7 +50,8 @@ def get_video_data(video_ids):
 
     # adapt response
     response = request.execute()
-    for item in response['items']:
+    batch_desc = f'fetching batch #{i+1} ie. videos {1+i*50}-{(i+1)*50}: '
+    for item in tqdm(response['items'], desc=batch_desc):
       msg, video = None, None
 
       try:
@@ -101,7 +102,7 @@ if __name__ == '__main__':
 
   # update 
   video_ids = df['yt_video_id']
-  msgs, videos = list(zip(*get_video_data(video_ids)))
+  msgs, videos = list(zip(*get_multiple_videos(video_ids)))
   for video in videos:
     df.loc[video.video_id] = { **df.loc[video.video_id].to_dict(), **asdict(video) }
 

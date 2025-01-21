@@ -5,8 +5,8 @@ import logging
 import pandas as pd 
 from collections import Counter
 
-from lib.models import fields, asdict, Video
-from lib.videos import get_video_data
+from lib.models import fields, asdict, Video, VideoDataPipeline
+from lib.videos import get_multiple_videos
 from lib.scraper import scrape_multiple_videos
 
 
@@ -44,20 +44,20 @@ if __name__ == '__main__':
   # read arguments from command line
   args = parser.parse_args()
   csv_output_path = args.csv_output_path or f"{args.csv_input_path}-out.xlsx"
-  include_fields = args.include_fields.split(",")
+  include_fields = args.include_fields.split(",") if args.include_fields else None
 
   # setup dataframe
   df = pd.read_csv(args.csv_input_path)
-  df.set_index(args.ids_column, drop=False, inplace=True)
+  # df.set_index(args.ids_column, drop=False, inplace=True)
 
   # select fields from resp. input csv, YT api and scraped videos
-  df = df.reindex(columns=[
-    *df.columns.tolist(),
-    *[f.name for f in fields(Video) 
-      if include_fields and f.name in include_fields],
-    *[f"scraped_{f.name}" for f in fields(Video) 
-      if include_fields and f.name in include_fields]
-  ])
+  # df = df.reindex(columns=[
+  #   *df.columns.tolist(),
+  #   *[f.name for f in fields(Video) 
+  #     if include_fields and f.name in include_fields],
+  #   *[f"scraped_{f.name}" for f in fields(Video) 
+  #     if include_fields and f.name in include_fields]
+  # ])
 
   # drop nan row, assume string cells
   df.dropna(how='all', inplace=True)
@@ -67,31 +67,35 @@ if __name__ == '__main__':
   video_ids = df[args.ids_column]
   counts = Counter(scraped=0, api=0)
 
+
   # Update df with videos from the YT api
-  for msg, video in get_video_data(video_ids):
-    if not video:
-      logging.info(f"Skipping video : {msg}")
-      continue
-    df.loc[video.video_id] = { **df.loc[video.video_id].to_dict(), **asdict(video) }
-    counts.update(api=1)
-  
+  with VideoDataPipeline(
+    csv_output_path=f"{args.csv_input_path}-api-out.csv", 
+    header=include_fields, dry_run=args.dry_run
+  ) as pipeline:
+    
+    for msg, video in get_multiple_videos(video_ids):
+      if not video:
+        logging.info(f"Skipping video : {msg}")
+        continue
+      pipeline.enqueue_video(video)
+      counts.update(api=1)
 
   # Update df with scraped videos 
-  scraped_results = asyncio.run(scrape_multiple_videos(video_ids))
-  counts.update(scraped=len(df))
-  for video in scraped_results:
-
-    df.loc[video.video_id] = { **df.loc[video.video_id].to_dict(), 
-                              **asdict(video, name_prefix='scraped_') }
+  with VideoDataPipeline(
+    csv_output_path=f"{args.csv_input_path}-scraped-out.csv", 
+    header=include_fields, dry_run=args.dry_run
+  ) as pipeline:
+    
+    scraped_videos = asyncio.run(scrape_multiple_videos(video_ids))
+    for video in scraped_videos:
+      pipeline.enqueue_video(video)
+      counts.update(scraped=1)
 
   # log results  
-  logging.info(f"Extracted videos: scraped / api / totals = "
-               f"{counts['scraped']} / {counts['api']} / {len(df)}")
-
-  # Write XLSX file
-  if not args.dry_run:
-    logging.info(f'Writing XLSX file : "{csv_output_path}"...')
-    df.rename(columns={ 'views': 'views_count_scraped' }, inplace=True)
-    df.to_excel(csv_output_path, engine='xlsxwriter', index=False)
-    logging.info(f'Done !')
+  logging.info(
+    f"Extracted videos: scraped / api / totals = "
+    f"{counts['scraped']} / {counts['api']} / {len(df)}"
+    f'\n\nDone !'
+  )
 
