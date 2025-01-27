@@ -144,7 +144,6 @@ class DataPipeline:
     self.fields = self.fields | set([*list(item), *list(kwargs)])
     self.data_queue.append({**item, **kwargs})
     self.stats["counts"].update(queued=1)
-    print('\n____ enqueued: ', len(self.data_queue), self.data_queue)
 
     if len(self.data_queue) >= self.data_queue_limit:
       await self.save_to_csv()

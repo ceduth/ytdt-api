@@ -5,15 +5,17 @@ Based on YouTube Data API (v3)
 
 """
 
+import functools
 import os
 import logging
+import aiometer
 from glom import glom
 from tqdm import tqdm
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
 from .models import DataPipeline, Video, fields, asdict
-from .helpers import gather_with_concurrency
+from .helpers import IO_CONCURRENCY_LIMIT, IO_RATE_LIMIT
 
 
 load_dotenv() 
@@ -86,8 +88,10 @@ async def fetch_multiple_videos(video_ids, **pipeline_kwargs):
 
       # into the pipeline, asynchronously
       async with DataPipeline(**pipeline_kwargs) as pipeline:
-        tasks = map(lambda it: _parse_to_pipeline(pipeline, it), response['items'])
-        return await gather_with_concurrency(*tasks, limit=50, desc=batch_desc)
+
+        return await aiometer.run_on_each(
+          functools.partial(_parse_to_pipeline, pipeline), tqdm(response['items'], desc=batch_desc), 
+          max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
 
   await create_tasks(video_ids)
 

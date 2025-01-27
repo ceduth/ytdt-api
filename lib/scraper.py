@@ -5,6 +5,7 @@ playwright install  # To download browser binaries
 """
 
 # from dataclasses import asdict
+import functools
 import re
 import asyncio
 import json
@@ -12,13 +13,15 @@ import logging
 import time
 
 import urllib.parse
+import aiometer
 from dateutil import parser
 from urllib.parse import urlparse, urljoin
 from playwright.async_api import async_playwright
+from tqdm import tqdm
 
 from .models import DataPipeline, Video, asdict
-from .helpers import IO_TIMEOUT, IO_CONCURRENCY_LIMIT, \
-  AsyncException, gather_with_concurrency
+from .helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, \
+  AsyncException
 
 
 logging.basicConfig(level=logging.INFO)
@@ -311,17 +314,23 @@ class YouTubeVideoScraper:
       """
 
       async def _scrape_to_pipeline(pipeline, video_id):
-        video = await self.scrape_video_stats(video_id)
-        await pipeline.enqueue(asdict(video))        
+        errs, video = {}, None
+        try :
+          video = await self.scrape_video_stats(video_id)
+          await pipeline.enqueue(asdict(video))        
+        except Exception as e:
+          errs[video_id] = str(e)
         return video
 
       async def create_tasks(video_ids):
-        """ Scrape and save videos to the data pipeline """
+        """ Scrape and save videos to the data pipeline with some rate control """
 
         async with DataPipeline(**pipeline_kwargs) as pipeline:
-          tasks = map(lambda v: _scrape_to_pipeline(pipeline, v), video_ids)
-          return await gather_with_concurrency(
-            *tasks, desc=f'scraping {len(video_ids)} videos')
+
+          desc = desc=f'scraping {len(video_ids)} videos'
+          return await aiometer.run_on_each(
+            functools.partial(_scrape_to_pipeline, pipeline), tqdm(video_ids, desc=desc), 
+            max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
 
       await create_tasks(video_ids)
       
