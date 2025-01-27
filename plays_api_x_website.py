@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
+import os
 import asyncio
 import argparse
 import logging
 import pandas as pd 
 from collections import Counter
 
-from lib.models import fields, asdict, Video, VideoDataPipeline
-from lib.videos import get_multiple_videos
+from lib.videos import fetch_multiple_videos
 from lib.scraper import scrape_multiple_videos
+from lib.helpers import IO_TIMEOUT
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+  level=os.environ.get('LOGLEVEL', logging.INFO))
 
 
 if __name__ == '__main__':
@@ -48,7 +50,7 @@ if __name__ == '__main__':
 
   # setup dataframe
   df = pd.read_csv(args.csv_input_path)
-  # df.set_index(args.ids_column, drop=False, inplace=True)
+  df.set_index(args.ids_column, drop=False, inplace=True)
 
   # select fields from resp. input csv, YT api and scraped videos
   # df = df.reindex(columns=[
@@ -63,39 +65,16 @@ if __name__ == '__main__':
   df.dropna(how='all', inplace=True)
   df = df.astype(str)
 
-  # vars
+  # fetch videos asynchronously using the YouTube Data API v3
   video_ids = df[args.ids_column]
-  counts = Counter(scraped=0, api=0)
+  pipeline_kwargs = { "csv_output_path": f"{args.csv_input_path}-api-out.csv", 
+                      "header": include_fields, "dry_run": args.dry_run,
+                      "name": "Fetch videos using the YouTube Data API v3" }
+  fetched_videos = asyncio.run(fetch_multiple_videos(video_ids, **pipeline_kwargs))
 
-
-  # Update df with videos from the YT api
-  with VideoDataPipeline(
-    csv_output_path=f"{args.csv_input_path}-api-out.csv", 
-    header=include_fields, dry_run=args.dry_run
-  ) as pipeline:
-    
-    for msg, video in get_multiple_videos(video_ids):
-      if not video:
-        logging.info(f"Skipping video : {msg}")
-        continue
-      pipeline.enqueue_video(video)
-      counts.update(api=1)
-
-  # Update df with scraped videos 
-  with VideoDataPipeline(
-    csv_output_path=f"{args.csv_input_path}-scraped-out.csv", 
-    header=include_fields, dry_run=args.dry_run
-  ) as pipeline:
-    
-    scraped_videos = asyncio.run(scrape_multiple_videos(video_ids))
-    for video in scraped_videos:
-      pipeline.enqueue_video(video)
-      counts.update(scraped=1)
-
-  # log results  
-  logging.info(
-    f"Extracted videos: scraped / api / totals = "
-    f"{counts['scraped']} / {counts['api']} / {len(df)}"
-    f'\n\nDone !'
-  )
+  # scrape videos asynchronously 
+  pipeline_kwargs = { "csv_output_path": f"{args.csv_input_path}-scraped-out.csv", 
+                      "header": include_fields, "dry_run": args.dry_run,
+                      "name": f"Scrape videos with {IO_TIMEOUT}ms timeout" }
+  scraped_videos = asyncio.run(scrape_multiple_videos(video_ids, **pipeline_kwargs))
 

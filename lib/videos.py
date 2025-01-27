@@ -12,7 +12,8 @@ from tqdm import tqdm
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
-from .models import Video, fields, asdict
+from .models import DataPipeline, Video, fields, asdict
+from .helpers import gather_with_concurrency
 
 
 load_dotenv() 
@@ -23,7 +24,30 @@ api_key = os.getenv("YT_API_KEY")
 youtube = build('youtube', 'v3', developerKey=api_key)
 
 
-def get_multiple_videos(video_ids):
+def parse_video(item):
+  """ Parse dict data into Video object """
+
+  video = Video(
+    video_id=item['id'],
+    title=item['snippet']['title'],
+    published_at=item['snippet']['publishedAt'],
+    upload_date=glom(item, 'recordingDetails.recordingDate', default=''),
+    language_code=glom(item, 'snippet.defaultAudioLanguage', default=''),
+    channel_id=glom(item, 'snippet.channelId', default=''),
+    channel_name=glom(item, 'snippet.title', default=''),
+    thumbnail_url=glom(item, 'snippet.thumbnails.default.url', default=''),
+    duration=item['contentDetails']['duration'],
+    view_count=item['statistics']['viewCount'],
+    # TODO:
+    # language_name = 
+    # country =  
+  )
+
+  logging.debug(f"Parsed video : {item['id']}", video)
+  return video
+
+
+async def fetch_multiple_videos(video_ids, **pipeline_kwargs):
   """
   Rwturn data (metadata and statistics) for a single video.
 
@@ -32,55 +56,42 @@ def get_multiple_videos(video_ids):
   https://developers.google.com/youtube/v3/determine_quota_cost
 
   """
-  
+
+  num_videos = len(video_ids)
   num_batches = min(int(len(video_ids)/50), 10000) + 1
-  for i in range(num_batches):
 
-    # coerces video_ids into an iterable
-    if not hasattr(video_ids, '__iter__'):
-      assert isinstance(video_ids, str), f"Invalid arg 'video_ids' {type(video_ids)}"
-      video_ids = video_ids.split(',')
+  async def _parse_to_pipeline(pipeline, item):
+    video = parse_video(item) # validate the data!
+    await pipeline.enqueue(asdict(video))        
+    return video    
 
-    # YT denies more than 50 video ids per request
-    id_list = list(video_ids)[i*50: (i+1)*50]
-    request = youtube.videos().list(
-        part="snippet,contentDetails,statistics",
-        id=','.join(list(id_list)) 
-    )
+  async def create_tasks(video_ids):
+    for i in range(num_batches):
 
-    # adapt response
-    response = request.execute()
-    batch_desc = f'fetching batch #{i+1} ie. videos {1+i*50}-{(i+1)*50}: '
-    for item in tqdm(response['items'], desc=batch_desc):
-      msg, video = None, None
+      # coerces video_ids into an iterable
+      if not hasattr(video_ids, '__iter__'):
+        assert isinstance(video_ids, str), f"Invalid arg 'video_ids' {type(video_ids)}"
+        video_ids = video_ids.split(',')
 
-      try:
-        video = Video(
-          video_id=item['id'],
-          title=item['snippet']['title'],
-          published_at=item['snippet']['publishedAt'],
-          upload_date=glom(item, 'recordingDetails.recordingDate', default=''),
-          language_code=glom(item, 'snippet.defaultAudioLanguage', default=''),
-          channel_id=glom(item, 'snippet.channelId', default=''),
-          channel_name=glom(item, 'snippet.title', default=''),
-          thumbnail_url=glom(item, 'snippet.thumbnails.default.url', default=''),
-          duration=item['contentDetails']['duration'],
-          view_count=item['statistics']['viewCount'],
-          # TODO:
-          # language_name = 
-          # country =  
-        )
+      # pepare fetch request 
+      # Note: YouTube denies more than 50 video ids per request
+      id_list = list(video_ids)[i*50: (i+1)*50]
+      request = youtube.videos().list(
+          part="snippet,contentDetails,statistics",
+          id=','.join(list(id_list)) )
 
-        logging.debug(f"Extracting from YT Data API, video : {item['id']}", asdict(video))
-        msg = None
+      # fetch batches of 50 videos ...
+      response = request.execute()
+      batch_desc = f'fetching batch #{i+1} ie. videos {1+i*50}-{min((i+1)*50, num_videos)}/{num_videos}: '
 
-      except Exception as exc:
-        msg, video = str(exc), None
-        logging.debug(f"""Error extracting video "{item['id']}": {msg}""")
+      # into the pipeline, asynchronously
+      async with DataPipeline(**pipeline_kwargs) as pipeline:
+        tasks = map(lambda it: _parse_to_pipeline(pipeline, it), response['items'])
+        return await gather_with_concurrency(*tasks, limit=50, desc=batch_desc)
 
-      yield msg, video
+  await create_tasks(video_ids)
 
-
+    
 
 if __name__ == '__main__':
   """
@@ -102,7 +113,7 @@ if __name__ == '__main__':
 
   # update 
   video_ids = df['yt_video_id']
-  msgs, videos = list(zip(*get_multiple_videos(video_ids)))
+  msgs, videos = list(zip(*fetch_multiple_videos(video_ids)))
   for video in videos:
     df.loc[video.video_id] = { **df.loc[video.video_id].to_dict(), **asdict(video) }
 
