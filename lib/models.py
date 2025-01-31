@@ -9,7 +9,7 @@ import pathlib
 from dataclasses import dataclass, \
   field as _field, fields as _fields, asdict as _asdict
 
-from .helpers import AsyncException
+from .helpers import AsyncException, save_to_csv
 
 
 __all__ = (
@@ -84,8 +84,9 @@ class Video:
 
 class DataPipeline:
   """
-  Batch-save data to csv file asynchronously.
-  Nota: No pandas dataframe here, be as fast as possible
+  Datatype-agnostic pipeline that batch-saves queued data (dict) 
+  to a csv file asynchronously.
+  Nota: Using no pandas dataframe here, be as fast as possible
   """
 
 
@@ -94,88 +95,91 @@ class DataPipeline:
     """Initialize the data pipeline."""
 
     self.data_queue = []
+    self.errors_queue = []
+
     self.data_queue_limit = data_queue_limit
     self.csv_output_path = csv_output_path
+    self.err_output_path = "{}-errors.csv".format(csv_output_path)
+  
     self.header = header
     self.dry_run = dry_run
     self.name = name
 
-    self.fields = set()
     self.stats = dict(
-      counts=Counter(queued=0, saved=0, bytes=0), 
+      data_queue=Counter(queued=0, saved=0, bytes=0), 
+      errors_queue=Counter(queued=0, saved=0, bytes=0), 
       started_at=None, ended_at=None
     )
 
   async def __aenter__(self):
 
-    # TODO: backup existing output csv file
+    # TODO: backup existing output files
     pathlib.Path(self.csv_output_path).unlink(missing_ok=True)
+    pathlib.Path(self.err_output_path).unlink(missing_ok=True)
+
     self.stats["started_at"] = time.time()
     return self
   
   async def __aexit__(self, exc_type, exc_val, exc_tb):
     """ Close pipeline after saving remaining data """
 
-    if len(self.data_queue) > 0:
-      
-      await self.save_to_csv()     
+    if len(self.data_queue) > 0:    
+
+      for queue, output_path, counts in (
+        self.switch_queue(), self.switch_queue(is_error=True)
+      ):
+        saved, written = await save_to_csv(queue, output_path)
+        counts.update(saved=saved, bytes=written)
+
+
       self.stats["ended_at"] = time.time()
 
       msg_kwargs = { 
         "name": self.name or 'Unnamed',
-        "elapsed": self.stats["ended_at"] - self.stats["started_at"],
-        "bytes": self.stats["counts"]["bytes"], 
-        "saved": self.stats["counts"]["saved"], 
-        "queued": self.stats["counts"]["queued"] }
+        "elapsed":  self.stats["ended_at"] - self.stats["started_at"],
+        "bytes":    self.stats["data_queue"]["bytes"], 
+        "saved":    self.stats["data_queue"]["saved"], 
+        "queued":   self.stats["data_queue"]["queued"], 
+        "err_bytes":    self.stats["errors_queue"]["bytes"], 
+        "err_saved":    self.stats["errors_queue"]["saved"], 
+        "err_queued":   self.stats["errors_queue"]["queued"]         
+        }
       
       logging.info(
         f"""\n{"-"*10}\n"""
-         """<DataPipeline> "{name}" processed jobs : 
-          saved/queued {saved}/{queued} ({bytes} B) in {elapsed:.6f} seconds\n"""
-            .format(**msg_kwargs))
+         """<DataPipeline> "{name}" processed jobs :\n 
+          items   : saved/queued {saved}/{queued} ({bytes} B) in {elapsed:.6f} seconds
+          errors  : saved/queued {err_saved}/{err_queued} ({err_bytes} B) in {elapsed:.6f} seconds
+         """
+          .format(**msg_kwargs))
 
-  async def enqueue(self, item: dict, **kwargs):
+
+  async def enqueue(self, item, is_error=False, **kwargs):
     """ Enqueue a data item to the pipeline 
     and save data if queue limit is reached. """
 
     if not isinstance(item, dict):
       raise AsyncException(f"item for queue must be a dict, got {type(item)}")
     
-    self.fields = self.fields | set([*list(item), *list(kwargs)])
-    self.data_queue.append({**item, **kwargs})
-    self.stats["counts"].update(queued=1)
+    data_queue, output_path, counts = self.switch_queue(is_error)
+    data_queue.append({ **item, **kwargs })
+    counts.update(queued=1)
 
-    if len(self.data_queue) >= self.data_queue_limit:
-      await self.save_to_csv()
-      self.data_queue.clear()
+    if len(self.data_queue) >= self.data_queue_limit \
+      and not self.dry_run:
+        
+        saved, written = await save_to_csv(data_queue, output_path)
+        counts.update(saved=saved, bytes=written)
+        data_queue.clear()
 
-  async def save_to_csv(self) -> None:
+  def switch_queue(self, is_error=False):
+    """ Set the data or error queue to be the current queue"""
 
-    data_batch = []
-    data_batch.extend(self.data_queue)
-
-    if not data_batch or self.dry_run:
-      return
-    
-    if not self.header:
-      header = self.fields
-
-    file_exists = (
-      os.path.isfile(self.csv_output_path) and os.path.getsize(
-        self.csv_output_path) > 0
+    data_queue, output_path, counts = (
+      self.data_queue, self.csv_output_path, self.stats["data_queue"]
+    ) if not is_error else (
+      self.errors_queue, 
+      self.err_output_path,
+      self.stats["errors_queue"] 
     )
-
-    with open(self.csv_output_path, mode="a", newline="", encoding="utf-8-sig") as file:
-
-      writer = csv.DictWriter(file, fieldnames=header)
-      if not file_exists:
-        bytes = writer.writeheader()
-        self.stats["counts"].update(bytes=bytes)
-
-      for data in data_batch:
-        reordered_data_dict = {
-            field: data[field] for field in header
-        }
-        bytes = writer.writerow(reordered_data_dict)
-        self.stats["counts"].update(saved=1, bytes=bytes)
-
+    return data_queue, output_path, counts

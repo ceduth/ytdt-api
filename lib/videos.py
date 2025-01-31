@@ -93,7 +93,7 @@ async def fetch_multiple_videos(video_ids, **pipeline_kwargs):
           functools.partial(_parse_to_pipeline, pipeline), tqdm(response['items'], desc=batch_desc), 
           max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
 
-  await create_tasks(video_ids)
+  return await create_tasks(video_ids)
 
     
 

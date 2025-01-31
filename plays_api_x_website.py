@@ -70,7 +70,7 @@ if __name__ == '__main__':
   pipeline_kwargs = { "csv_output_path": f"{args.csv_input_path}-api-out.csv", 
                       "header": include_fields, "dry_run": args.dry_run,
                       "name": "Fetch videos using the YouTube Data API v3" }
-  fetched_videos = asyncio.run(fetch_multiple_videos(video_ids, **pipeline_kwargs))
+  # fetched_videos = asyncio.run(fetch_multiple_videos(video_ids, **pipeline_kwargs))
 
   # scrape videos asynchronously 
   pipeline_kwargs = { "csv_output_path": f"{args.csv_input_path}-scraped-out.csv", 

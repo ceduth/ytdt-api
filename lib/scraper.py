@@ -270,7 +270,7 @@ class YouTubeVideoScraper:
         return Video(**video_stats)
       
       except Exception as e:
-        raise AsyncException(f'Error scraping video "{video_id}": {e}')
+        raise AsyncException(f'Error scraping video "{video_id}"', e)
       
       finally:
         if page:
@@ -313,26 +313,33 @@ class YouTubeVideoScraper:
       }
       """
 
-      async def _scrape_to_pipeline(pipeline, video_id):
-        errs, video = {}, None
+      async def _scrape_to_pipeline(pipeline: DataPipeline, video_id):
+
         try :
           video = await self.scrape_video_stats(video_id)
-          await pipeline.enqueue(asdict(video))        
+          return await pipeline.enqueue(asdict(video))        
         except Exception as e:
-          errs[video_id] = str(e)
-        return video
+          await pipeline.enqueue(e.__dict__, is_error=True)
+
 
       async def create_tasks(video_ids):
-        """ Scrape and save videos to the data pipeline with some rate control """
+        """ Scrape (with rate control) and save videos to the data pipeline  """
 
         async with DataPipeline(**pipeline_kwargs) as pipeline:
 
-          desc = desc=f'scraping {len(video_ids)} videos'
-          return await aiometer.run_on_each(
+          desc =f'scraping {len(video_ids)} videos'
+          # await aiometer.run_on_each(
+          #   functools.partial(_scrape_to_pipeline, pipeline), tqdm(video_ids, desc=desc), 
+          #   max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
+          async with aiometer.amap(
             functools.partial(_scrape_to_pipeline, pipeline), tqdm(video_ids, desc=desc), 
-            max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
+            max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT
+          ) as results:
+             async for data in results:
+                # print("XXXXX", data)
+                pass
 
-      await create_tasks(video_ids)
+      return await create_tasks(video_ids)
       
 
 async def scrape_multiple_videos(video_ids, verbose=False, **pipeline_kwargs):
