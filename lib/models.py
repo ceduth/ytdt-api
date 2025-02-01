@@ -9,7 +9,7 @@ import pathlib
 from dataclasses import dataclass, \
   field as _field, fields as _fields, asdict as _asdict
 
-from .helpers import AsyncException, save_to_csv
+from .helpers import IO_BATCH_SIZE, AsyncException, save_to_csv
 
 
 __all__ = (
@@ -17,7 +17,8 @@ __all__ = (
 ) 
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+  level=os.environ.get('LOGLEVEL', logging.INFO))
 
 
 def asdict(video, name_prefix=None):
@@ -90,9 +91,11 @@ class DataPipeline:
   """
 
 
-  def __init__(self, csv_output_path, header=None, data_queue_limit=50, 
+  def __init__(self, csv_output_path, header=None, 
+               data_queue_limit=IO_BATCH_SIZE, 
                dry_run=False, name=None):
-    """Initialize the data pipeline."""
+    
+    """ Initialize the data pipeline. """
 
     self.data_queue = []
     self.errors_queue = []
@@ -121,16 +124,15 @@ class DataPipeline:
     return self
   
   async def __aexit__(self, exc_type, exc_val, exc_tb):
-    """ Close pipeline after saving remaining data """
+    """ Close pipeline after saving remaining data. """
 
     if len(self.data_queue) > 0:    
 
-      for queue, output_path, counts in (
-        self.switch_queue(), self.switch_queue(is_error=True)
-      ):
+      # flush remaining data from all queues
+      queues = (self._get_queue(), self._get_queue(is_error=True))
+      for queue, output_path, counts in queues:
         saved, written = await save_to_csv(queue, output_path)
         counts.update(saved=saved, bytes=written)
-
 
       self.stats["ended_at"] = time.time()
 
@@ -161,7 +163,7 @@ class DataPipeline:
     if not isinstance(item, dict):
       raise AsyncException(f"item for queue must be a dict, got {type(item)}")
     
-    data_queue, output_path, counts = self.switch_queue(is_error)
+    data_queue, output_path, counts = self._get_queue(is_error)
     data_queue.append({ **item, **kwargs })
     counts.update(queued=1)
 
@@ -172,7 +174,7 @@ class DataPipeline:
         counts.update(saved=saved, bytes=written)
         data_queue.clear()
 
-  def switch_queue(self, is_error=False):
+  def _get_queue(self, is_error=False):
     """ Set the data or error queue to be the current queue"""
 
     data_queue, output_path, counts = (

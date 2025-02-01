@@ -8,14 +8,17 @@ from tqdm.asyncio import tqdm_asyncio
 IO_TIMEOUT = 60000          # timeout to scrape/fetch, default 30000
 IO_CONCURRENCY_LIMIT = 5    # asyncio semaphore limit
 IO_RATE_LIMIT=1             # max number of tasks spawned per second
+IO_BATCH_SIZE=3             # I/O size incl. queue length before flushing to storage 
 
 
 __all__ = (
-  'IO_TIMEOUT', 'IO_CONCURRENCY_LIMIT', IO_RATE_LIMIT,
-  'gather', 'gather_with_concurrency',
+  'IO_TIMEOUT', 'IO_CONCURRENCY_LIMIT', 'IO_RATE_LIMIT', 'IO_BATCH_SIZE',
   'AsyncException',
   )
 
+
+logging.basicConfig(
+  level=os.environ.get('LOGLEVEL', logging.INFO))
 
 
 async def save_to_csv(data, csv_output_path, header=None) -> None:
@@ -51,9 +54,20 @@ async def save_to_csv(data, csv_output_path, header=None) -> None:
 
 
 class AsyncException(Exception):
-  """  Async I/O error  """
+  """  Prettify-able, self-logging async I/O exception  
+
+  ** Example usage **
+
+    try:
+      raise ValueError('not a key')
+    except Exception as e:
+      err = AsyncException(f'Error scraping video "{1234}"', )
+      print(e.__dict__)
+  
+  """
 
   def __init__(self, message, exc=None):
+
     exc = exc or self
     self.message = f"🚫 async error: {message}"
     self.detail = str(exc)
@@ -61,10 +75,6 @@ class AsyncException(Exception):
        etype=type(exc), value=exc, tb=exc.__traceback__))
     
     super().__init__(self, message)
+    logging.debug(self.message)
 
 
-# try:
-#   raise ValueError('not a key')
-# except Exception as e:
-#   err = AsyncException(f'Error scraping video "{1234}"', )
-#   print(err.asdict())

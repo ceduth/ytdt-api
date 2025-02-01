@@ -15,7 +15,7 @@ from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
 from .models import DataPipeline, Video, fields, asdict
-from .helpers import IO_CONCURRENCY_LIMIT, IO_RATE_LIMIT
+from .helpers import IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT
 
 
 load_dotenv() 
@@ -60,12 +60,17 @@ async def fetch_multiple_videos(video_ids, **pipeline_kwargs):
   """
 
   num_videos = len(video_ids)
-  num_batches = min(int(len(video_ids)/50), 10000) + 1
+  num_batches = min(int(len(video_ids)/IO_BATCH_SIZE), 10000) + 1
+
 
   async def _parse_to_pipeline(pipeline, item):
-    video = parse_video(item) # validate the data!
-    await pipeline.enqueue(asdict(video))        
-    return video    
+    try :
+      video = parse_video(item) # validate the data!
+      return await pipeline.enqueue(asdict(video))         
+    except Exception as e:      
+      # TODO: only AsyncException are currently properly formated for savin to csv 
+      await pipeline.enqueue(e.__dict__, is_error=True)
+
 
   async def create_tasks(video_ids):
     for i in range(num_batches):
@@ -77,21 +82,29 @@ async def fetch_multiple_videos(video_ids, **pipeline_kwargs):
 
       # pepare fetch request 
       # Note: YouTube denies more than 50 video ids per request
-      id_list = list(video_ids)[i*50: (i+1)*50]
+      id_list = list(video_ids)[i*50: (i+1)*IO_BATCH_SIZE]
       request = youtube.videos().list(
           part="snippet,contentDetails,statistics",
           id=','.join(list(id_list)) )
 
-      # fetch batches of 50 videos ...
+      # fetch batches of IO_DATA_QUEUE_LIMIT videos ...
       response = request.execute()
-      batch_desc = f'fetching batch #{i+1} ie. videos {1+i*50}-{min((i+1)*50, num_videos)}/{num_videos}: '
+      batch_desc_params = { "current": i+1, "start": 1+i*IO_BATCH_SIZE, 
+                            "end": min((i+1)*IO_BATCH_SIZE, num_videos), 
+                            "num_videos": num_videos }
+      batch_desc = 'fetching batch #{current} ie. videos {start}-{end}/{num_videos}: '\
+        .format(**batch_desc_params)
 
       # into the pipeline, asynchronously
       async with DataPipeline(**pipeline_kwargs) as pipeline:
 
-        return await aiometer.run_on_each(
-          functools.partial(_parse_to_pipeline, pipeline), tqdm(response['items'], desc=batch_desc), 
-          max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
+        async with aiometer.amap(
+          functools.partial(_parse_to_pipeline, pipeline), 
+          tqdm(response['items'], desc=batch_desc), 
+          max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT
+        ) as results:
+            async for data in results:
+              pass
 
   return await create_tasks(video_ids)
 

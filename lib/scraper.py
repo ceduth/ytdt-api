@@ -6,6 +6,7 @@ playwright install  # To download browser binaries
 
 # from dataclasses import asdict
 import functools
+import os
 import re
 import asyncio
 import json
@@ -24,7 +25,8 @@ from .helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, \
   AsyncException
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+  level=os.environ.get('LOGLEVEL', logging.INFO))
 
 
 class YouTubeVideoScraper:
@@ -319,6 +321,7 @@ class YouTubeVideoScraper:
           video = await self.scrape_video_stats(video_id)
           return await pipeline.enqueue(asdict(video))        
         except Exception as e:
+          # TODO: only AsyncException are currently properly formated for savin to csv 
           await pipeline.enqueue(e.__dict__, is_error=True)
 
 
@@ -328,15 +331,12 @@ class YouTubeVideoScraper:
         async with DataPipeline(**pipeline_kwargs) as pipeline:
 
           desc =f'scraping {len(video_ids)} videos'
-          # await aiometer.run_on_each(
-          #   functools.partial(_scrape_to_pipeline, pipeline), tqdm(video_ids, desc=desc), 
-          #   max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
+
           async with aiometer.amap(
             functools.partial(_scrape_to_pipeline, pipeline), tqdm(video_ids, desc=desc), 
             max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT
           ) as results:
              async for data in results:
-                # print("XXXXX", data)
                 pass
 
       return await create_tasks(video_ids)

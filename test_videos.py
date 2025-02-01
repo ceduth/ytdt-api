@@ -12,12 +12,14 @@
 #   data = re.search(pattern=pattern, string=yt_html.prettify())
 
 import logging
-import csv 
+import csv
+import os 
 from pytube import YouTube
 from pytube.exceptions import RegexMatchError, VideoUnavailable
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+  level=os.environ.get('LOGLEVEL', logging.INFO))
 
 
 def download_youtube_video(video_id, csv_output_path="videos/", dry_run=False):
