@@ -65,43 +65,49 @@ async def fetch_multiple_videos(video_ids, **pipeline_kwargs):
 
 
   async def _parse_to_pipeline(pipeline, item):
+
     try :
+
+
+
       video = parse_video(item) # validate the data!
-      return await pipeline.enqueue(asdict(video))         
+      return await pipeline.enqueue(asdict(video))
+
     except Exception as e:      
       # TODO: only AsyncException are currently properly formated for savin to csv 
       await pipeline.enqueue(e.__dict__, is_error=True)
 
 
   async def create_tasks(video_ids):
-    for i in range(num_batches):
 
-      # coerces video_ids into an iterable
-      if not hasattr(video_ids, '__iter__'):
-        assert isinstance(video_ids, str), f"Invalid arg 'video_ids' {type(video_ids)}"
-        video_ids = video_ids.split(',')
 
-      # pepare fetch request 
-      # Note: YouTube denies more than 50 video ids per request
-      id_list = list(video_ids)[i*50: (i+1)*IO_BATCH_SIZE]
-      request = youtube.videos().list(
+    async with DataPipeline(**pipeline_kwargs) as pipeline:
+
+      for i in range(num_batches):
+
+        # coerces video_ids into an iterable
+        if not hasattr(video_ids, '__iter__'):
+          assert isinstance(video_ids, str), f"Invalid arg 'video_ids' {type(video_ids)}"
+          video_ids = video_ids.split(',')
+
+        # prepare fetch request
+        # Note: YouTube denies more than 50 video ids per request
+        id_list = list(video_ids)[i * 50: (i + 1) * IO_BATCH_SIZE]
+        request = youtube.videos().list(
           part="snippet,contentDetails,statistics",
-          id=','.join(list(id_list)) )
+          id=','.join(list(id_list)))
 
-      # fetch batches of IO_DATA_QUEUE_LIMIT videos ...
-      response = request.execute()
-      batch_desc_params = { "current": i+1, "start": 1+i*IO_BATCH_SIZE, 
-                            "end": min((i+1)*IO_BATCH_SIZE, num_videos), 
-                            "num_videos": num_videos }
-      batch_desc = 'fetching batch #{current} ie. videos {start}-{end}/{num_videos}: '\
-        .format(**batch_desc_params)
+        # fetch batches of IO_DATA_QUEUE_LIMIT videos ...
+        response = request.execute()
 
-      # into the pipeline, asynchronously
-      async with DataPipeline(**pipeline_kwargs) as pipeline:
+        batch_desc = 'fetching batch #{current} ie. videos {start}-{end}/{num_videos}: ' \
+          .format(**{"current": i + 1, "start": 1 + i * IO_BATCH_SIZE,
+                     "end": min((i + 1) * IO_BATCH_SIZE, num_videos),
+                     "num_videos": num_videos})
 
         async with aiometer.amap(
-          functools.partial(_parse_to_pipeline, pipeline), 
-          tqdm(response['items'], desc=batch_desc), 
+          functools.partial(_parse_to_pipeline, pipeline),
+          tqdm(response['items'], desc=batch_desc),
           max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT
         ) as results:
             async for data in results:
