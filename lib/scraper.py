@@ -4,14 +4,12 @@ pip install playwright
 playwright install  # To download browser binaries
 """
 
-# from dataclasses import asdict
 import functools
 import os
 import re
 import asyncio
 import json
 import logging
-import time
 
 import urllib.parse
 import aiometer
@@ -20,9 +18,10 @@ from urllib.parse import urlparse, urljoin
 from playwright.async_api import async_playwright
 from tqdm import tqdm
 
-from .models import DataPipeline, Video, asdict
-from .helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, \
-  AsyncException
+from models import DataPipeline, Video, asdict
+from helpers import \
+    IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, \
+    AsyncException, VideoError
 
 
 logging.basicConfig(
@@ -272,7 +271,7 @@ class YouTubeVideoScraper:
         return Video(**video_stats)
       
       except Exception as e:
-        raise AsyncException(f'Error scraping video "{video_id}"', e)
+        raise VideoError(video_id, f'Error scraping video "{video_id}"', exc=e)
       
       finally:
         if page:
@@ -321,7 +320,7 @@ class YouTubeVideoScraper:
           video = await self.scrape_video_stats(video_id)
           return await pipeline.enqueue(asdict(video))        
         except Exception as e:
-          # TODO: only AsyncException are currently properly formated for savin to csv 
+          # TODO: only AsyncException are currently properly formated for saving to csv
           await pipeline.enqueue(e.__dict__, is_error=True)
 
 

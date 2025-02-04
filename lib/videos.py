@@ -14,8 +14,9 @@ from tqdm import tqdm
 from googleapiclient.discovery import build
 from dotenv import load_dotenv
 
-from .models import DataPipeline, Video, fields, asdict
-from .helpers import IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT
+from models import DataPipeline, Video, fields, asdict
+from helpers import \
+  IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT
 
 
 load_dotenv() 
