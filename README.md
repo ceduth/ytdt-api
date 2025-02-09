@@ -10,10 +10,31 @@ sudo apt-get update
 sudo apt-get install git -y
 sudo apt-get install python3-setuptools python3-dev build-essential python3-venv python3-pip -y
 
+
+
 python -m venv venv
 ```
 
-2. Install dependencies
+
+2. Optionally switch to newest major python release, eg. 3.12 in 2025
+
+Install python 3.12 using pyenv
+
+```shell
+pyenv install 3.12
+#pyenv global 3.12
+```
+
+Fix pip for python 3.12
+
+```bash
+python -m ensurepip --upgrade
+python -m pip install --upgrade setuptools
+pip install --upgrade pip
+```
+
+3. Install dependencies
+
 
 ```bash
 pip install -r requirements.txt
@@ -21,7 +42,7 @@ playwright install-deps
 playwright install
 ```
 
-3. Setup envs
+4. Setup envs
 
 Create an API key in the Console by clicking [Create credentials](https://console.cloud.google.com/apis/credentials)  > API key. 
 

@@ -12,7 +12,7 @@
 #   data = re.search(pattern=pattern, string=yt_html.prettify())
 
 import logging
-import csv
+import to_csv
 import os 
 from pytube import YouTube
 from pytube.exceptions import RegexMatchError, VideoUnavailable
@@ -54,7 +54,6 @@ if __name__ == '__main__':
     csv_input_path = 'yt-nullchannel.csv'
     csv_output_path = f"{csv_input_path}-out.csv"
     csv_header = ['yt_video_id', 'availability']
-
 
     with open(csv_input_path, 'r', newline='') as input_csv, \
          open(csv_output_path, 'w', newline='') as output_csv:

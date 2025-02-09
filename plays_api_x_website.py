@@ -9,27 +9,29 @@ from lib.videos import fetch_multiple_videos
 from lib.scraper import scrape_multiple_videos
 from helpers import IO_TIMEOUT
 
+
 logging.basicConfig(
     level=os.environ.get('LOGLEVEL', logging.INFO))
 
+
 if __name__ == '__main__':
     """
-  plays_api_x_website.py 
-    [-h] 
-    [--csv_output_path CSV_OUTPUT_PATH] 
-    [--include_fields INCLUDE_FIELDS]
-    [--ids_column IDS_COLUMN] 
-    [--dry_run DRY_RUN] 
-    csv_input_path
-
-  Example usage:
-    plays_api_x_website.py data/video-ids-three.csv
-  """
+    ** Usage **
+        plays_api_x_website.py 
+        [-h] 
+        [--csv_output_path CSV_OUTPUT_PATH] 
+        [--include_fields INCLUDE_FIELDS]
+        [--ids_column IDS_COLUMN] 
+        [--dry_run DRY_RUN] 
+        csv_input_path
+        
+    ** Example usage **
+        plays_api_x_website.py data/video-ids-three.csv
+    """
 
     description = """
-  We could use a python script to compare youtube api plays vs. youtube.com plays 
-  for every youtube video
-  """
+    We could use a python script to compare youtube api plays vs. youtube.com plays 
+    for every youtube video """
 
     # Initialize parser
     parser = argparse.ArgumentParser(description=description)
@@ -66,12 +68,12 @@ if __name__ == '__main__':
     # fetch videos asynchronously using the YouTube Data API v3
     video_ids = df[args.ids_column]
     pipeline_kwargs = {"csv_output_path": f"{args.csv_input_path}-api-out.csv",
-                       "header": include_fields, "dry_run": args.dry_run,
+                       "fields": include_fields, "dry_run": args.dry_run,
                        "name": "Fetch videos using the YouTube Data API v3"}
     fetched_videos = asyncio.run(fetch_multiple_videos(video_ids, **pipeline_kwargs))
 
     # scrape videos asynchronously
     pipeline_kwargs = {"csv_output_path": f"{args.csv_input_path}-scraped-out.csv",
-                       "header": include_fields, "dry_run": args.dry_run,
+                       "fields": include_fields, "dry_run": args.dry_run,
                        "name": f"Scrape videos with {IO_TIMEOUT}ms timeout"}
     scraped_videos = asyncio.run(scrape_multiple_videos(video_ids, **pipeline_kwargs))
