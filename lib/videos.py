@@ -8,6 +8,8 @@ Based on YouTube Data API (v3)
 import functools
 import os
 import logging
+from collections import defaultdict
+
 import aiometer
 import asyncio
 from glom import glom
@@ -68,15 +70,15 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
                 await progress_callback(task_index, item)
 
             v = parse_video(item)  # validate the data!
-            return await pipeline.enqueue(asdict(v))
+            return await pipeline.enqueue(asdict(v)), 0
 
         except Exception as e:
             # TODO: only AsyncException are currently properly formatted for savin to csv
-            await pipeline.enqueue(e.__dict__, is_error=True)
+            await pipeline.enqueue(e.__dict__, is_error=True), -1
 
     async def run_tasks(video_ids: [str]):
 
-        results = []
+        results = defaultdict(list)
 
         async with DataPipeline(**pipeline_kwargs) as pipeline:
 
@@ -105,8 +107,12 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
                 tasks = [functools.partial(_parse_to_pipeline, pipeline, i, v)
                          for i, v in enumerate(tqdm(response['items'], desc=batch_desc))]
 
-                results += await aiometer.run_all(
+                for item, err_code in (await aiometer.run_all(
                   tasks, max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
+                ):
+                    key = 'videos' if err_code > -1 else 'errors'
+                    item = asdict(item)
+                    results[key] += [item]
 
         return results
 
@@ -133,22 +139,25 @@ if __name__ == '__main__':
         "dry_run": False,
     }
 
+    # get video_ids from csv file using pandas
     df = pd.read_csv(csv_input_path)
     df.set_index('yt_video_id', drop=False, inplace=True)
     df = df.reindex(columns=df.columns.tolist() + fields(Video))
     df = df.astype(str)
     # df.dropna(inplace=True)
-
-    # update
     video_ids = df['yt_video_id']
-    videos = asyncio.run(fetch_multiple_videos(
+
+    # fetch videos using the yt api
+    results = asyncio.run(fetch_multiple_videos(
         video_ids, progress_callback=print_progress, **pipeline_kwargs))
 
-    for item in videos:
+    # save fetched video items (dict) to memory dataframe
+    for item in results['videos']:
         video_id = item["video_id"]
         df.loc[video_id] = {
             **df.loc[video_id].to_dict(), **item}
 
-    # update csv file
+    # optionally save to csv file
     if not dry_run:
+        logging.info(f'saving result to: {csv_output_path}')
         df.to_excel(csv_output_path, engine='xlsxwriter', index=False)

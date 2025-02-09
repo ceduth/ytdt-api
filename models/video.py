@@ -15,13 +15,17 @@ logging.basicConfig(
 
 
 def asdict(video, name_prefix=None):
+
+    if isinstance(video, dict):
+        return video
+
     return {f"{name_prefix or ''}{k}": v
             for k, v in _asdict(video).items()
             if not k.startswith('_')}  # and not k.startswith('video_id')}
 
 
 def fields(cls):
-    return [f for f in _fields(cls) if not f.name.startswith('_')]
+    return [f.name for f in _fields(cls) if not f.name.startswith('_')]
 
 
 @dataclass

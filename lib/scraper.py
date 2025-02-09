@@ -13,6 +13,9 @@ import json
 import logging
 
 import urllib.parse
+from collections import defaultdict
+from typing import Dict
+
 import aiometer
 from dateutil import parser
 from urllib.parse import urlparse, urljoin
@@ -330,22 +333,22 @@ class YouTubeVideoScraper:
 
             Returns:
             """
-
             try:
                 if progress_callback:
                     await progress_callback(task_index, video_id)
 
                 video = await self.scrape_video_stats(video_id)
-                return await pipeline.enqueue(asdict(video))
+                return await pipeline.enqueue(asdict(video)), 0
 
             except Exception as e:
                 logging.debug(str(e))
-                return await pipeline.enqueue(e.__dict__, is_error=True)
+                return await pipeline.enqueue(e.__dict__, is_error=True), -1
 
         async def run_tasks(video_ids: [str]):
             """ Scrape (with rate control) and save videos to the data pipeline  """
 
             async with DataPipeline(**pipeline_kwargs) as pipeline:
+
                 desc = f'asynchronously scraping {len(video_ids)} videos'
                 return await aiometer.run_all([
                     functools.partial(_scrape_to_pipeline, pipeline, i, v)
@@ -355,7 +358,7 @@ class YouTubeVideoScraper:
         return await run_tasks(video_ids)
 
 
-async def scrape_multiple_videos(video_ids, progress_callback=None, verbose=False, **pipeline_kwargs):
+async def scrape_multiple_videos(video_ids, progress_callback=None, **pipeline_kwargs):
     """
     Scrape videos from YouTube website.
     """
@@ -363,11 +366,14 @@ async def scrape_multiple_videos(video_ids, progress_callback=None, verbose=Fals
     # Create scraper and scrape videos concurrently
     async with YouTubeVideoScraper() as scraper:
 
-        results = await scraper.scrape_multiple_videos(
+        results = defaultdict(list)
+        response = await scraper.scrape_multiple_videos(
             video_ids, progress_callback=progress_callback, **pipeline_kwargs)
 
-        if verbose:
-            results = list(map(lambda v: asdict(v) if isinstance(v, Video) else v, results))
+        for item, err_code in response:
+            key = 'videos' if err_code > -1 else 'errors'
+            item = asdict(item)
+            results[key] += [item]
 
         return results
 
@@ -402,7 +408,7 @@ if __name__ == "__main__":
         print(f"Progress: {completed} videos scraped. Currently processing: {current_video}")
 
     results = asyncio.run(scrape_multiple_videos(
-        video_ids, progress_callback=print_progress, verbose=True, **pipeline_kwargs))
+        video_ids, progress_callback=print_progress, **pipeline_kwargs))
 
     # optionally, save results to a JSON file
     with open('../data/youtube_video_stats.json', 'w', encoding='utf-8-sig') as f:

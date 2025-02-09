@@ -51,7 +51,7 @@ def download_youtube_video(video_id, csv_output_path="videos/", dry_run=False):
 if __name__ == '__main__':
     
     # yt_video_ids = { "yt_video_id": "Y8JJi_YkXtA" }
-    csv_input_path = 'yt-nullchannel.csv'
+    csv_input_path = '../data/yt-nullchannel.csv'
     csv_output_path = f"{csv_input_path}-out.csv"
     csv_header = ['yt_video_id', 'availability']
 

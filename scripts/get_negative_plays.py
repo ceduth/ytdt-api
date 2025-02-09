@@ -37,7 +37,7 @@ if __name__ == "__main__":
   dup_negative_plays_video_ids = []
   df_out = pd.DataFrame(columns=['video_id', 'plays', 'negative_plays'])
 
-  df = pd.read_csv('data/wc_jfp_youtube_ds.csv').sort_values(['event_date'])
+  df = pd.read_csv('../data/wc_jfp_youtube_ds.csv').sort_values(['event_date'])
   negative_plays_ids = set(df[df['plays'] < 0]['video_id'])
 
 

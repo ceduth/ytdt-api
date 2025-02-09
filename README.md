@@ -9,9 +9,6 @@
 sudo apt-get update
 sudo apt-get install git -y
 sudo apt-get install python3-setuptools python3-dev build-essential python3-venv python3-pip -y
-
-
-
 python -m venv venv
 ```
 
@@ -55,10 +52,11 @@ YT_API_KEY=XXXX...
 ```
 
 
-## script `plays_api_x_website`.
+## Run script `plays_api_x_website`.
 
-Compares youtube api plays vs. youtube.com plays for every youtube video \
-*TODO*: add more fields eg. likes/dislikes, comments, shares, subscribers gained/lost, language, etc. 
+
+Compares YouTube api plays vs. youtube.com plays for every YouTube video \
+*TODO*: add more fields e.g. likes/dislikes, comments, shares, subscribers gained/lost, language, etc. 
 
 Usage: 
 ```
@@ -72,8 +70,94 @@ plays_api_x_website.py
 ```
 
 Example:
+
 ```bash
 chmod +x plays_api_x_website.py
-./plays_api_x_website.py data/video-ids-three.csv \
+
+PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/  \
+./scripts/plays_api_x_website.py data/video-ids-three.csv \
   --include_fields=published_at,upload_date,duration,view_count,scraped_published_at,scraped_upload_date,scraped_upload_date,scraped_duration,scraped_view_count
 ```
+
+
+##  API server
+
+1. Start the server
+
+    ```shell
+    cd backend
+    PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/api  \
+      uvicorn main:app --reload --app-dir=./api
+    ```
+
+2. API routes
+
+    ```shell
+    curl -X POST http://localhost:8000/scrape \
+      -H "Content-Type: application/json" \
+      -d '{
+        "video_ids": [
+          "9eHseYggb-I",  
+          "W7Tkx2oXIyk",  
+          "uuo2KqoJxsc",
+          "UJfX-ZrDZmU",
+          "0_jC8Lg-oxY"
+        ]
+      }'
+    
+    # Response example:
+    # {"job_id": "20250209_150714"}
+    ```
+
+3. Check job status:
+
+    ```shell
+    curl http://localhost:8000/status/20250209_150714
+    
+    # Response example:
+    # {
+    #   "status": "running",
+    #   "progress": {
+    #     "completed": 4,
+    #     "total": 5,
+    #     "current_video": "0_jC8Lg-oxY"
+    #   },
+    #   "results": null,
+    #   "error": null
+    # }
+    ```
+
+4. Get job results:
+    
+    ```bash
+    curl http://localhost:8000/results/20250209_123456
+    
+    # Response example:
+    # {
+    #   "results": [
+    #     {
+    #       "video_id": "dQw4w9WgXcQ",
+    #       "title": "Rick Astley - Never Gonna Give You Up",
+    #       "views": 1234567,
+    #       "likes": 12345,
+    #       "comments": 1234,
+    #       "upload_date": "Oct 25, 2009",
+    #       "channel_name": "Rick Astley",
+    #       "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+    #     },
+    #     {
+    #       "video_id": "jNQXAC9IVRw",
+    #       "title": "Me at the zoo",
+    #       "views": 7654321,
+    #       "likes": 54321,
+    #       "comments": 4321,
+    #       "upload_date": "Apr 23, 2005",
+    #       "channel_name": "jawed",
+    #       "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+    #     }
+    #   ]
+    # }
+    ```
+
+
+
