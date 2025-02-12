@@ -175,7 +175,6 @@ class YouTubeVideoScraper:
             # Navigate to the video page, wait for the page to fully load
             # ie. until there are no more than 0 network connections for at least 500 milliseconds.
             video_url = f"https://www.youtube.com/watch?v={video_id}"
-            # await self._goto_page(page, video_url)
             await page.goto(video_url, wait_until='networkidle', timeout=IO_TIMEOUT)
 
             # Waiting for video info to load => missing view_count, upload_date
@@ -398,9 +397,9 @@ if __name__ == "__main__":
     ]
 
     pipeline_kwargs = {
-        "csv_output_path": f"video-ids-three-scraped-out.csv",
+        "csv_output_path": f"data/video-ids-three-scraped-out.csv",
         "name": f"Scrape videos with {IO_TIMEOUT}ms timeout",
-        "dry_run": False,
+        "dry_run": True,
     }
 
     # progress callback

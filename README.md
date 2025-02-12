@@ -1,4 +1,6 @@
-# Gospelseeds
+# yt-retriever
+
+Library and API server to retrieve YouTube content using web scraping and the YouTube Data API. 
 
 
 ## Preps.

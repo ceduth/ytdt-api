@@ -9,3 +9,4 @@ __pycache__/
 .env
 
 jfp-data-warehouse-9f38615b5871.json
+.vercel
