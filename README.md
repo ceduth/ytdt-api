@@ -11,7 +11,7 @@ Library and API server to retrieve YouTube content using web scraping and the Yo
 sudo apt-get update
 sudo apt-get install git -y
 sudo apt-get install python3-setuptools python3-dev build-essential python3-venv python3-pip -y
-python -m venv venv
+python -m venv .venv
 ```
 
 
@@ -51,34 +51,6 @@ https://developers.google.com/youtube/v3/determine_quota_cost
 
 ```shell
 YT_API_KEY=XXXX...
-```
-
-
-## Run script `plays_api_x_website`.
-
-
-Compares YouTube api plays vs. youtube.com plays for every YouTube video \
-*TODO*: add more fields e.g. likes/dislikes, comments, shares, subscribers gained/lost, language, etc. 
-
-Usage: 
-```
-plays_api_x_website.py 
-  [-h] 
-  [--csv_output_path CSV_OUTPUT_PATH] 
-  [--include_fields INCLUDE_FIELDS]
-  [--ids_column IDS_COLUMN] 
-  [--dry_run DRY_RUN] 
-  csv_input_path
-```
-
-Example:
-
-```bash
-chmod +x plays_api_x_website.py
-
-PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/  \
-./scripts/plays_api_x_website.py data/video-ids-three.csv \
-  --include_fields=published_at,upload_date,duration,view_count,scraped_published_at,scraped_upload_date,scraped_upload_date,scraped_duration,scraped_view_count
 ```
 
 
@@ -162,4 +134,59 @@ PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/  \
     ```
 
 
+## Scripts
 
+### Script `plays_api_x_website.py`
+
+
+Compares YouTube api plays vs. youtube.com plays for every YouTube video \
+*TODO*: add more fields e.g. likes/dislikes, comments, shares, subscribers gained/lost, language, etc. 
+
+Usage: 
+
+```shell
+plays_api_x_website.py 
+  [-h] 
+  [--csv_output_path CSV_OUTPUT_PATH] 
+  [--include_fields INCLUDE_FIELDS]
+  [--ids_column IDS_COLUMN] 
+  [--dry_run DRY_RUN] 
+  csv_input_path
+```
+
+Example:
+
+```bash
+chmod +x plays_api_x_website.py
+
+PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/  \
+./scripts/plays_api_x_website.py data/video-ids-three.csv \
+  --include_fields=published_at,upload_date,duration,view_count,scraped_published_at,scraped_upload_date,scraped_upload_date,scraped_duration,scraped_view_count
+```
+
+
+### Script `test_videos.py`
+
+
+Unavailable videos are written to CSV file with following columns:
+
+- video_id: YouTube video ID
+- error_message: specific error encountered
+- check_date: timestamp when the check was performed
+
+
+Usage:
+
+The usage remains similar, but the unavailable videos are now output as CSV:
+```shell
+available_videos.py input_file.txt
+  --output/-o: Specify custom output file for available videos (default: available_videos.txt)
+  --unavailable/-u: Specify custom output CSV file for unavailable videos (default: unavailable_videos.csv)
+  --workers/-w: Set maximum number of concurrent threads (default: 10)
+```
+
+Example:
+
+```shell
+available_videos.py data/wc_jfp_youtube_video_d.csv -u data/unavailable_videos.csv
+```
