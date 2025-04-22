@@ -29,12 +29,12 @@ jobs:
       - name: Log in to Harbor Registry
         uses: docker/login-action@v2
         with:
-          registry: regsitry.ceduth.dev
+          registry: registry.ceduth.dev
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_TAG=regsitry.ceduth.dev/jfp/yt-retriever:latest
+          IMAGE_TAG=registry.ceduth.dev/jfp/yt-retriever:latest
           docker build -t $IMAGE_TAG .
           docker push $IMAGE_TAG

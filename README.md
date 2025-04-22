@@ -194,7 +194,7 @@ available_videos.py data/wc_jfp_youtube_video_d.csv -u data/unavailable_videos.c
 ## Deploy
 
 
-1. Test locally
+## Test locally
 
 ```shell
 docker build -t yt-retriever .
@@ -203,4 +203,13 @@ docker run -p 8000:80 yt-retriever
 
 Open http://localhost:8000 
 
-2. 
+
+
+## Deploy to Kubernetes 
+
+1. Add following secrets to GitHub repository
+
+```shell
+gh secret set HARBOR_USERNAME --body "your-username"
+gh secret set HARBOR_PASSWORD --body "your-password-value"
+```
