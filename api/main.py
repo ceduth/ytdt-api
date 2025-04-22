@@ -104,6 +104,15 @@ async def get_results(job_id: str):
     return {"results": scraping_jobs[job_id]["results"]}
 
 
+@app.get("/")
+async def get_version():
+    return {
+        "name": "yt-retriever",
+        "description": "API for scraping YouTube video data",    
+        "version": "0.1.0"
+    }
+
+
 if __name__ == "__main__":
 
     import uvicorn

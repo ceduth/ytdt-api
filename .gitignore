@@ -1,7 +1,9 @@
+.vscode/
 .venv/
 data/
 __pycache__/
 .idea/
+.vercel
 
 *.pyc
 *.pyo
@@ -9,4 +11,3 @@ __pycache__/
 .env
 
 jfp-data-warehouse-9f38615b5871.json
-.vercel
