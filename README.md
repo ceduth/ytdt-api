@@ -197,6 +197,11 @@ available_videos.py data/wc_jfp_youtube_video_d.csv -u data/unavailable_videos.c
 ## Test locally
 
 ```shell
+PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/Projects/yt-retriever uvicorn api.main:app \
+  --host 127.0.0.1 --port 8000 --reload
+```
+
+```shell
 docker build -t yt-retriever .
 docker run -p 8000:80 yt-retriever
 ```
@@ -212,4 +217,5 @@ Open http://localhost:8000
 ```shell
 gh secret set HARBOR_USERNAME --body "your-username"
 gh secret set HARBOR_PASSWORD --body "your-password-value"
+gh secret set YT_API_KEY --body "your-youtube-api-key"
 ```
