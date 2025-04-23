@@ -167,63 +167,108 @@ class YouTubeVideoScraper:
         """
 
         page = None
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        video_stats = {
+            "video_id": video_id,
+            "title": "Unknown",
+            "duration": "Unknown",
+            "view_count": 0,
+            "likes": 0,
+            "comments": 0,
+            "shares": 0,
+            "dislikes": 0,
+            "published_at": "Unknown",
+            "upload_date": "Unknown",
+            "channel_name": "Unknown",
+            "url": video_url,
+            "thumbnail_url": "Unknown",
+        }
 
         try:
             # Create a new page in new browser context
             page = await self.browser.new_page(locale='en-US')
+            page.set_default_timeout(IO_TIMEOUT)  
 
             # Navigate to the video page, wait for the page to fully load
-            # ie. until there are no more than 0 network connections for at least 500 milliseconds.
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            await page.goto(video_url, wait_until='networkidle', timeout=IO_TIMEOUT)
+            # wait_until='networkidle' waits till there are no more than 0 network connections for at least 500 milliseconds.
+            # wait_until='domcontentloaded' => less strict page load condition
+            await page.goto(video_url, wait_until='domcontentloaded')  
 
-            # Waiting for video info to load => missing view_count, upload_date
-            # tried unsuccessfully following selectors: `div#info`, `video`, `#contents > ytd-video-renderer` eg.:
-            await page.wait_for_selector('#contents', timeout=IO_TIMEOUT)
-            # Rather, giving some time for additional content to load is reliable,
-            # but not recommended in prod
-            # await page.wait_for_timeout(20000)
+             # Wait for title to be visible (a safe indicator the page has loaded key elements)
+            await page.wait_for_selector('h1.ytd-watch-metadata yt-formatted-string', state='visible', timeout=90000)
+
+            # If the reels or video pages use iframes or lazy-loading content, you may need to scroll or interact:
+            await page.mouse.wheel(0, 1000)
+            
+            # Give JavaScript more time to execute
+            await asyncio.sleep(3)
 
             # Extract video title
             try:
-                title_element = await page.query_selector('h1.ytd-watch-metadata')
-                video_title = await title_element.inner_text() if title_element else "Unknown Title"
+                title_element = await page.query_selector('h1.ytd-watch-metadata yt-formatted-string')
+                video_stats["title"] = await title_element.inner_text() if title_element else "Unknown Title"
             except Exception as e:
                 logging.debug(f'Could not extract title for video "{video_id}": {e}')
-                video_title = "Unknown Title"
 
             # Extract view count
             try:
                 view_element = await page.query_selector('div#info span.ytd-video-view-count-renderer')
                 view_text = await view_element.inner_text() if view_element else "0 views"
-                view_count = self._parse_count(view_text.split()[:-1])
+                video_stats["view_count"] = self._parse_count(view_text.split()[:-1])
             except Exception as e:
                 logging.debug(f'Could not extract views for video "{video_id}": {e}')
-                view_count = 0
 
-            # Extract likes count
+            # Extract likes count - try multiple potential selectors
+            # Try to get aria-label first, fallback to inner text 
             try:
-                like_button = await page.query_selector('yt-button-shape[title*="like"]')
-                if like_button:
-                    like_text = await like_button.inner_text()
-                    likes = self._parse_count(like_text)
-                else:
-                    likes = 0
+                like_selectors = [
+                    'ytd-menu-renderer button[aria-label*="like"]',
+                    'like-button-view-model button',
+                    'segmented-like-button-view-model button',
+                    '#top-level-buttons-computed button:first-child'
+                ]
+                for selector in like_selectors:
+                    like_element = await page.query_selector(selector)
+                    if like_element:
+                        like_text = await like_element.get_attribute('aria-label')
+                        if not like_text:
+                            like_text = await like_element.inner_text()
+                        if like_text:
+                            match = re.search(r'\b\d+(?:\.\d+)?[KM]?\b', like_text)
+                            video_stats["likes"] = self._parse_count(match.group())
+                            break
             except Exception as e:
                 logging.debug(f'Could not extract likes for video "{video_id}": {e}')
-                likes = 0
+                video_stats["likes"] = 0
 
             # Extract comments count
+            # Try to scroll down to make sure comments section is loaded
             try:
-                comments_element = await page.query_selector('yt-formatted-string.ytd-comments-header-renderer')
-                if comments_element:
-                    comments_text = await comments_element.inner_text()
-                    comments = self._parse_count(comments_text.split()[0])
-                else:
-                    comments = 0
+
+                await page.wait_for_selector('#comments', timeout=5000)
+                await page.evaluate('''() => { window.scrollBy(0, 800); }''')
+
+                comment_selectors = [
+                    '#comments #count .count-text',
+                    'h2.ytd-comments-header-renderer',
+                    'yt-formatted-string.ytd-comments-header-renderer',
+                ]
+                for selector in comment_selectors:
+                    comments_element = await page.query_selector(selector)
+                    if comments_element:
+                        comments_text = await comments_element.inner_text()
+                        if comments_text:
+                            video_stats["comments"] = comments_text
+                            match = re.search(r'\b\d+(?:\.\d+)?[KM]?\b', comments_text)
+                            if match:
+                                video_stats["comments"] = self._parse_count(match.group())
+                            else:
+                                video_stats["comments"] = self._parse_count(comments_text.split()[0])
+                        break
+                
             except Exception as e:
                 logging.debug(f'Could not extract comments for video "{video_id}": {e}')
-                comments = 0
+
 
             # Extract shares count (challenging to scrape accurately)
             shares = 0  # YouTube typically doesn't show share count directly
@@ -235,44 +280,27 @@ class YouTubeVideoScraper:
             # preferring locator api https://stackoverflow.com/a/76745106/4615806
             try:
                 date_element = page.locator('div#info yt-formatted-string.ytd-video-primary-info-renderer')
-                published_at = await date_element.all_inner_texts() if date_element else "Unknown Date"
-                published_at = parser.parse(" ".join(published_at), fuzzy=True)
+                video_stats["published_at"] = await date_element.all_inner_texts() if date_element else "Unknown Date"
+                video_stats["published_at"] = parser.parse(" ".join(video_stats["published_at"]), fuzzy=True)
             except Exception:
-                published_at = "Unknown Date"
+                logging.debug(f'Could not extract publish date for video "{video_id}": {e}')
 
             # Extract duration from iso8601 into seconds
-            duration = await page.evaluate("""document.querySelector('meta[itemprop=\"duration\"]').content""")
+            video_stats["duration"] = await page.evaluate(
+                """document.querySelector('meta[itemprop=\"duration\"]').content""")
 
             # Extract channel name
             try:
                 channel_element = await page.query_selector('yt-formatted-string.ytd-channel-name a')
-                channel_name = await channel_element.inner_text() if channel_element else "Unknown Channel"
+                video_stats["channel_name"] = await channel_element.inner_text() if channel_element else "Unknown Channel"
             except Exception:
-                channel_name = "Unknown Channel"
+                logging.debug(f'Could not extract channel name for video "{video_id}": {e}')
 
             # TODO: this is unstable
             # Extract additional channel details
             channel_details = await self._extract_channel_details(page)
-
-            # Compile comprehensive video statistics
-            video_stats = {
-                "video_id": video_id,
-                "title": video_title,
-                "duration": duration,
-                "view_count": view_count,
-                "likes": likes,
-                "comments": comments,
-                "shares": shares,
-                "dislikes": dislikes,
-                "published_at": str(published_at),
-                "upload_date": '',
-                "channel_name": channel_name,
-                "url": video_url,
-                "thumbnail_url": '',
-                **channel_details  # Merge channel details
-            }
-
-            return Video(**video_stats)
+            if channel_details:
+                video_stats.update(channel_details)
 
         except Exception as e:
             raise VideoError(video_id, f'Error scraping video "{video_id}"', exc=e)
@@ -280,6 +308,10 @@ class YouTubeVideoScraper:
         finally:
             if page:
                 await page.close()
+
+        print(f"Scraped video: {video_stats['title']} ({video_stats['view_count']} views)\n", video_stats)
+        return Video(**video_stats)
+
 
     async def scrape_multiple_videos(self, video_ids, progress_callback=None, **pipeline_kwargs):
         """

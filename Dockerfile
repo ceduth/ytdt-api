@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN playwright install-deps
 RUN playwright install
+RUN mkdir -p /app/data
 
 COPY ./api /app/api
 COPY ./lib /app/lib

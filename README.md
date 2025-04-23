@@ -3,6 +3,12 @@
 Library and API server to retrieve YouTube content using web scraping and the YouTube Data API. 
 
 
+## Caveats
+
+- YouTube webpages do not currently expose following data: shares count, dislikes count, upload_date. 
+This is not available by scraping and has to be retrieved by the YT API.
+
+
 ## Preps.
 
 1. Create virtual env
@@ -49,10 +55,20 @@ Note: Cost of retrieving YT videos is 1 unit per 50 videos capped at 10k units/d
 https://developers.google.com/youtube/v3/determine_quota_cost
 
 
+Required envs:
+
 ```shell
 YT_API_KEY=XXXX...
 ```
 
+The following have [presets](./helpers.py):
+
+```shell
+IO_TIMEOUT=60000
+IO_RATE_LIMIT=1
+IO_BATCH_SIZE=3
+IO_CONCURRENCY_LIMIT=5
+```
 
 ##  API server
 
@@ -105,32 +121,33 @@ YT_API_KEY=XXXX...
     
     ```bash
     curl http://localhost:8000/results/20250209_123456
-    
-    # Response example:
-    # {
-    #   "results": [
-    #     {
-    #       "video_id": "dQw4w9WgXcQ",
-    #       "title": "Rick Astley - Never Gonna Give You Up",
-    #       "views": 1234567,
-    #       "likes": 12345,
-    #       "comments": 1234,
-    #       "upload_date": "Oct 25, 2009",
-    #       "channel_name": "Rick Astley",
-    #       "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-    #     },
-    #     {
-    #       "video_id": "jNQXAC9IVRw",
-    #       "title": "Me at the zoo",
-    #       "views": 7654321,
-    #       "likes": 54321,
-    #       "comments": 4321,
-    #       "upload_date": "Apr 23, 2005",
-    #       "channel_name": "jawed",
-    #       "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw"
-    #     }
-    #   ]
-    # }
+    ```
+
+    ```json
+      {
+      "results": [
+        {
+          "video_id": "dQw4w9WgXcQ",
+          "title": "Rick Astley - Never Gonna Give You Up",
+          "views": 1234567,
+          "likes": 12345,
+          "comments": 1234,
+          "upload_date": "Oct 25, 2009",
+          "channel_name": "Rick Astley",
+          "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        },
+        {
+          "video_id": "jNQXAC9IVRw",
+          "title": "Me at the zoo",
+          "views": 7654321,
+          "likes": 54321,
+          "comments": 4321,
+          "upload_date": "Apr 23, 2005",
+          "channel_name": "jawed",
+          "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+        }
+      ]
+    }
     ```
 
 
