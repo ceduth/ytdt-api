@@ -3,18 +3,17 @@ import pathlib
 
 
 # timeout to scrape/fetch, default 30000
-IO_TIMEOUT = 60000
+IO_TIMEOUT = os.getenv("IO_TIMEOUT", 90000)
 
 # asyncio semaphore limit
-IO_CONCURRENCY_LIMIT = 5
+IO_CONCURRENCY_LIMIT = os.getenv("IO_CONCURRENCY_LIMIT", 5)
 
 # max number of tasks spawned per second
-IO_RATE_LIMIT = 1
+IO_RATE_LIMIT = os.getenv("IO_RATE_LIMIT", 1)
 
 # I/O size incl. queue length before flushing to storage
 # also 50 max video ids currently allowed to be requested at once by the YT API.
-# recommended value 50
-IO_BATCH_SIZE = 3
+IO_BATCH_SIZE = os.getenv("IO_BATCH_SIZE", 50)
 
 
 __all__ = (
