@@ -5,7 +5,7 @@ Library and API server to retrieve YouTube content using web scraping and the Yo
 
 ## Caveats
 
-- YouTube webpages do not currently expose following data: shares count, dislikes count, upload_date. 
+- YouTube webpages do not currently expose following data: shares count, dislikes count, upload_date.
 This is not available by scraping and has to be retrieved by the YT API.
 
 
@@ -156,8 +156,7 @@ IO_CONCURRENCY_LIMIT=5
 ### Script `plays_api_x_website.py`
 
 
-Compares YouTube api plays vs. youtube.com plays for every YouTube video \
-*TODO*: add more fields e.g. likes/dislikes, comments, shares, subscribers gained/lost, language, etc. 
+Compares YouTube api plays vs. youtube.com plays for every YouTube video 
 
 Usage: 
 
@@ -236,3 +235,7 @@ gh secret set HARBOR_USERNAME --body "your-username"
 gh secret set HARBOR_PASSWORD --body "your-password-value"
 gh secret set YT_API_KEY --body "your-youtube-api-key"
 ```
+
+## TODO
+
+* Fix comments count = 0 most of the time

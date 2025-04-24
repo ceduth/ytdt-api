@@ -15,36 +15,42 @@ import asyncio
 from glom import glom
 from tqdm import tqdm
 from googleapiclient.discovery import build
-from dotenv import load_dotenv
 
 from models import DataPipeline, Video, fields, asdict
 from helpers import \
-    IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT
+    IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT, \
+    LOG_LEVEL, YT_API_KEY, \
+    map_language
 
-load_dotenv()
-logging.basicConfig(level=logging.DEBUG)
 
-api_key = os.getenv("YT_API_KEY")
-youtube = build('youtube', 'v3', developerKey=api_key)
+logging.basicConfig(level=LOG_LEVEL)
+
+youtube = build('youtube', 'v3', developerKey=YT_API_KEY)
 
 
 def parse_video(item):
     """ Parse dict data into Video object """
+
+    # Extract language and country codes from locale code eg. 'en-US'
+    langage_code, country_code, *_  = \
+        glom(item, 'snippet.defaultAudioLanguage', default='-').split('-')
 
     video = Video(
         video_id=item['id'],
         title=item['snippet']['title'],
         published_at=item['snippet']['publishedAt'],
         upload_date=glom(item, 'recordingDetails.recordingDate', default=''),
-        language_code=glom(item, 'snippet.defaultAudioLanguage', default=''),
         channel_id=glom(item, 'snippet.channelId', default=''),
-        channel_name=glom(item, 'snippet.title', default=''),
+        channel_name=glom(item, 'snippet.channelTitle', default=''),
         thumbnail_url=glom(item, 'snippet.thumbnails.default.url', default=''),
         duration=item['contentDetails']['duration'],
         view_count=item['statistics']['viewCount'],
-        # TODO:
-        # language_name =
-        # country =
+        comments=item['statistics']['commentCount'],
+        likes=item['statistics']['likeCount'],
+
+        language_code=langage_code,
+        language_name=map_language(langage_code),
+        country = country_code
     )
 
     logging.debug(f"Parsed video : {item['id']}", video)
