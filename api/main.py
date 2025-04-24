@@ -13,6 +13,8 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import datetime
 
+from lib.videos import fetch_multiple_videos
+
 
 app = FastAPI()
 
@@ -34,13 +36,26 @@ class ScrapeRequest(BaseModel):
     video_ids: List[str]
 
 
-async def run_scraper(job_id: str, video_ids: List[str]):
+yt_data_tools = {
+    "scrape": {
+        "description": "Scrape youtube.com",
+        "task": scrape_multiple_videos
+    },
+    "fetch": {
+        "description": f"Fetch videos using the YouTube Data API v3",
+        "task": fetch_multiple_videos,
+    },
+}
 
-    pipeline_kwargs = {
-        "csv_output_path": "data/api-scraped.csv",
-        "name": f"Scrape videos with {IO_TIMEOUT}ms timeout",
-        "dry_run": False,
-    }
+
+async def run_tool(tool_name, job_id: str, video_ids: List[str]):
+
+    pipeline_kwargs = {}
+    pipeline_kwargs["csv_output_path"] = f"data/{job_id}.csv"
+    pipeline_kwargs["name"] = f"{yt_data_tools[tool_name]['description']} - {job_id}"
+    pipeline_kwargs["dry_run"] = False
+
+    start_task = yt_data_tools[tool_name]['task'] 
 
     try:
 
@@ -54,7 +69,7 @@ async def run_scraper(job_id: str, video_ids: List[str]):
                 "current_video": current_video
             }
 
-        results = await scrape_multiple_videos(
+        results = await start_task(
             video_ids, progress_callback=progress_callback, **pipeline_kwargs)
 
         scraping_jobs[job_id]["status"] = "completed"
@@ -65,8 +80,14 @@ async def run_scraper(job_id: str, video_ids: List[str]):
         scraping_jobs[job_id]["error"] = str(e)
 
 
-@app.post("/scrape")
-async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks):
+@app.post("/{tool_name}")
+async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks, tool_name: str):
+
+    if tool_name not in yt_data_tools:
+        return {"error": f"Invalid request, no such tool: {tool_name}"}
+    
+    print(f"Starting scraping job with tool: {tool_name}")  
+    print(f"Video IDs: {request.video_ids}")
 
     job_id = datetime.now().strftime("%Y%m%d_%H%M%S")
     scraping_jobs[job_id] = {
@@ -80,7 +101,7 @@ async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks
         "error": None
     }
 
-    background_tasks.add_task(run_scraper, job_id, request.video_ids)
+    background_tasks.add_task(run_tool, tool_name, job_id, request.video_ids)
     return {"job_id": job_id}
 
 
