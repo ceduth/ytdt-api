@@ -24,10 +24,11 @@ from tqdm import tqdm
 
 from models import DataPipeline, Video, asdict
 from lib.exceptions import AsyncException, VideoError
-from helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT
+from helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, LOG_LEVEL, \
+    map_language
 
-logging.basicConfig(
-    level=os.environ.get('LOGLEVEL', logging.INFO))
+
+logging.basicConfig(level=LOG_LEVEL)
 
 
 class YouTubeVideoScraper:
@@ -140,16 +141,7 @@ class YouTubeVideoScraper:
                         if len(language_parts) > 1:
                             language = language_parts[1].strip()
                             channel_details["language_name"] = language
-                            # Attempt to map language name to code (very basic)
-                            language_map = {
-                                "English": "en",
-                                "Spanish": "es",
-                                "French": "fr",
-                                "German": "de",
-                                "Chinese": "zh",
-                                "Japanese": "ja"
-                            }
-                            channel_details["language_code"] = language_map.get(language, "unknown")
+                            channel_details["language_code"] = map_language(language)
             except Exception:
                 pass
 
@@ -309,7 +301,7 @@ class YouTubeVideoScraper:
             if page:
                 await page.close()
 
-        print(f"Scraped video: {video_stats['title']} ({video_stats['view_count']} views)\n", video_stats)
+        logging.debug(f"Scraped video: {video_stats['title']} ({video_stats['view_count']} views)\n", video_stats)
         return Video(**video_stats)
 
 
