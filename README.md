@@ -1,4 +1,4 @@
-# yt-retriever
+# ytdt-api
 
 Library and API server to retrieve YouTube content using web scraping and the YouTube Data API. 
 
@@ -72,11 +72,16 @@ IO_CONCURRENCY_LIMIT=5
 
 ##  API server
 
-### Start the server locally (dev) or hit [YTDT online server](https://yt.ceduth.dev/).
+### Start the server locally (dev) or hit [YTDT online server](https://ytdt.ceduth.dev/).
+
+    ```shell
+    PYTHONPATH=$PYTHONPATH:. uvicorn api.main:app \
+      --host 127.0.0.1 --port 8000 --reload
+    ```
 
     ```shell
     cd backend
-    PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/api  \
+    PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/ytdt-api/backend/api  \
       uvicorn main:app --reload --app-dir=./api
     ```
 
@@ -87,7 +92,7 @@ IO_CONCURRENCY_LIMIT=5
   Online:
 
   ```
-  curl -X POST https://yt.ceduth.dev/api/external/scrape \
+  curl -X POST https://ytdt.ceduth.dev/api/external/scrape \
   -H "Content-Type: application/json" \
   -d '{ "video_ids": ["Znm_glAFMUQ"] }'
   ```
@@ -115,7 +120,7 @@ IO_CONCURRENCY_LIMIT=5
 2. Fetch videos using the YouTube Data API v3
 
   ```shell
-    curl -X POST https://yt.ceduth.dev/api/external/fetch \
+    curl -X POST https://ytdt.ceduth.dev/api/external/fetch \
     -H "Content-Type: application/json" \
     -d '{ "video_ids": ["Znm_glAFMUQ"] }'
   ```
@@ -197,7 +202,7 @@ Example:
 ```bash
 chmod +x plays_api_x_website.py
 
-PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/  \
+PYTHONPATH=$PYTHONPATH:.  \
 ./scripts/plays_api_x_website.py data/video-ids-three.csv \
   --include_fields=published_at,upload_date,duration,view_count,scraped_published_at,scraped_upload_date,scraped_upload_date,scraped_duration,scraped_view_count
 ```
@@ -232,16 +237,12 @@ available_videos.py data/wc_jfp_youtube_video_d.csv -u data/unavailable_videos.c
 ## Deploy
 
 
-## Test locally
+## Deploy locally
+
 
 ```shell
-PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/Projects/yt-retriever uvicorn api.main:app \
-  --host 127.0.0.1 --port 8000 --reload
-```
-
-```shell
-docker build -t yt-retriever .
-docker run -p 8000:80 yt-retriever
+docker build -t ytdt-api .
+docker run -p 8000:80 ytdt-api
 ```
 
 Open http://localhost:8000 
