@@ -72,7 +72,7 @@ IO_CONCURRENCY_LIMIT=5
 
 ##  API server
 
-1. Start the server
+### Start the server locally (dev) or hit [YTDT online server](https://yt.ceduth.dev/).
 
     ```shell
     cd backend
@@ -80,7 +80,19 @@ IO_CONCURRENCY_LIMIT=5
       uvicorn main:app --reload --app-dir=./api
     ```
 
-2. API routes
+### API routes
+
+1. Start a scraping job
+
+  Online:
+
+  ```
+  curl -X POST https://yt.ceduth.dev/api/external/scrape \
+  -H "Content-Type: application/json" \
+  -d '{ "video_ids": ["Znm_glAFMUQ"] }'
+  ```
+
+  Or locally, iff followed above dev setup:
 
     ```shell
     curl -X POST http://localhost:8000/scrape \
@@ -98,6 +110,16 @@ IO_CONCURRENCY_LIMIT=5
     # Response example:
     # {"job_id": "20250209_150714"}
     ```
+  Or 
+
+2. Fetch videos using the YouTube Data API v3
+
+  ```shell
+    curl -X POST https://yt.ceduth.dev/api/external/fetch \
+    -H "Content-Type: application/json" \
+    -d '{ "video_ids": ["Znm_glAFMUQ"] }'
+  ```
+
 
 3. Check job status:
 
