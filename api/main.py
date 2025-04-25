@@ -128,8 +128,8 @@ async def get_results(job_id: str):
 @app.get("/")
 async def get_version():
     return {
-        "name": "yt-retriever",
-        "description": "API for scraping YouTube video data",    
+        "name": "ytdt-api",
+        "description": "YouTube Data Tools API",    
         "version": "0.1.0"
     }
 
