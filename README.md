@@ -3,7 +3,7 @@
 `ytdt-api` exposes the core functionality of the YouTube Data Tools.
 as a python library, a webservice, and several utility scripts. 
 
-YouTube Data Tools: ML experimentation toolkit on YouTube data. Easily extract YouTube data, gather video statistics, explore API data, and gain novel audience insights.
+*YouTube Data Tools*: ML experimentation toolkit for YouTube data. Easily extract YouTube data, gather video statistics, explore API data, and gain novel audience insights.
 
 
 ## Caveats
@@ -69,10 +69,11 @@ YT_API_KEY=XXXX...
 The following have [presets](./helpers.py):
 
 ```shell
-IO_TIMEOUT=60000
-IO_RATE_LIMIT=1
-IO_BATCH_SIZE=3
-IO_CONCURRENCY_LIMIT=5
+export \
+  IO_TIMEOUT=60000 \
+  IO_RATE_LIMIT=1 \
+  IO_BATCH_SIZE=3 \
+  IO_CONCURRENCY_LIMIT=5
 ```
 
 ##  API Server

@@ -12,20 +12,20 @@ load_dotenv()
 YT_API_KEY = os.environ["YT_API_KEY"]
 
 # Set to True to enable debug mode
-LOG_LEVEL = os.getenv("LOG_LEVEL", logging.INFO)
+LOG_LEVEL = int(os.getenv("LOG_LEVEL", logging.INFO))
 
 # timeout to scrape/fetch, default 30000
-IO_TIMEOUT = os.getenv("IO_TIMEOUT", 90000)
+IO_TIMEOUT = int(os.getenv("IO_TIMEOUT", 90000))
 
 # asyncio semaphore limit
-IO_CONCURRENCY_LIMIT = os.getenv("IO_CONCURRENCY_LIMIT", 5)
+IO_CONCURRENCY_LIMIT = int(os.getenv("IO_CONCURRENCY_LIMIT", 5))
 
 # max number of tasks spawned per second
-IO_RATE_LIMIT = os.getenv("IO_RATE_LIMIT", 1)
+IO_RATE_LIMIT = int(os.getenv("IO_RATE_LIMIT", 1))
 
 # I/O size incl. queue length before flushing to storage
 # also 50 max video ids currently allowed to be requested at once by the YT API.
-IO_BATCH_SIZE = os.getenv("IO_BATCH_SIZE", 50)
+IO_BATCH_SIZE = int(os.getenv("IO_BATCH_SIZE", 50))
 
 
 __all__ = (
