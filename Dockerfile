@@ -40,10 +40,5 @@ COPY ./helpers.py /app/helpers.py
 # Create necessary directories with a single RUN to reduce layers
 RUN mkdir -p /app/data
 
-# Run as non-root user for better security
-RUN groupadd -r appuser && useradd -r -g appuser appuser && \
-    chown -R appuser:appuser /app
-USER appuser
-
-# Specify the command to run
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "80"]
+# Specify the command to run with a port above 1024 (non-privileged port)
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
