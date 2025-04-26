@@ -3,7 +3,7 @@
 `ytdt-api` exposes the core functionality of the YouTube Data Tools.
 as a python library, a webservice, and several utility scripts. 
 
-*YouTube Data Tools*: ML experimentation toolkit for YouTube data. Easily extract YouTube data, gather video statistics, explore API data, and gain novel audience insights.
+**YouTube Data Tools**: ML experimentation toolkit for YouTube data. Easily extract YouTube data, gather video statistics, explore API data, and gain novel audience insights.
 
 
 ## Caveats
