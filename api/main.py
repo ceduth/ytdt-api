@@ -8,12 +8,12 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from helpers import IO_TIMEOUT
-from lib.scraper import YouTubeVideoScraper, scrape_multiple_videos
+from lib.videos import fetch_multiple_videos
+from lib.scraper import scrape_multiple_videos
 from pydantic import BaseModel
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from lib.videos import fetch_multiple_videos
 
 
 app = FastAPI()
@@ -81,7 +81,7 @@ async def run_tool(tool_name, job_id: str, video_ids: List[str]):
 
 
 @app.post("/{tool_name}")
-async def start_scrape(request: ScrapeRequest, background_tasks: BackgroundTasks, tool_name: str):
+async def start_tool(request: ScrapeRequest, background_tasks: BackgroundTasks, tool_name: str):
 
     if tool_name not in yt_data_tools:
         return {"error": f"Invalid request, no such tool: {tool_name}"}
@@ -128,8 +128,8 @@ async def get_results(job_id: str):
 @app.get("/")
 async def get_version():
     return {
-        "name": "yt-retriever",
-        "description": "API for scraping YouTube video data",    
+        "name": "ytdt-api",
+        "description": "YouTube Data Tools API",    
         "version": "0.1.0"
     }
 

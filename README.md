@@ -1,15 +1,20 @@
-# yt-retriever
+# ytdt-api
 
-Library and API server to retrieve YouTube content using web scraping and the YouTube Data API. 
+`ytdt-api` exposes the core functionality of the YouTube Data Tools.
+as a python library, a webservice, and several utility scripts. 
+
+YouTube Data Tools: ML experimentation toolkit on YouTube data. Easily extract YouTube data, gather video statistics, explore API data, and gain novel audience insights.
 
 
 ## Caveats
 
-- YouTube webpages do not currently expose following data: shares count, dislikes count, upload_date.
-This is not available by scraping and has to be retrieved by the YT API.
+- YouTube webpages do not currently expose following data: shares count, dislikes count, upload_date. This is not available by scraping and has to be retrieved by the YT API.
+
+- Scrapping: YouTube employs robust anti-scraping measures, including IP blocking and CAPTCHAs, to prevent automated scraping of its data. 
+Tweak the various IO_* environment variables to throttle the various multi-threading async I/O tasks. Please perform ethical and sustainable web scraping. Don't redistribute scraped data, especially not in bulk form. This protects user privacy.
 
 
-## Preps.
+## Dev setup.
 
 1. Create virtual env
 
@@ -70,17 +75,34 @@ IO_BATCH_SIZE=3
 IO_CONCURRENCY_LIMIT=5
 ```
 
-##  API server
+##  API Server
 
-1. Start the server
+### Start the server locally (dev) or hit [YTDT online server](https://ytdt.ceduth.dev/).
+
+    ```shell
+    PYTHONPATH=$PYTHONPATH:. uvicorn api.main:app \
+      --host 127.0.0.1 --port 8000 --reload
+    ```
 
     ```shell
     cd backend
-    PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/api  \
+    PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/ytdt-api/backend/api  \
       uvicorn main:app --reload --app-dir=./api
     ```
 
-2. API routes
+### API routes
+
+1. Start a scraping job
+
+  Online:
+
+  ```
+  curl -X POST https://ytdt.ceduth.dev/api/external/scrape \
+  -H "Content-Type: application/json" \
+  -d '{ "video_ids": ["Znm_glAFMUQ"] }'
+  ```
+
+  Or locally, iff followed above dev setup:
 
     ```shell
     curl -X POST http://localhost:8000/scrape \
@@ -98,6 +120,16 @@ IO_CONCURRENCY_LIMIT=5
     # Response example:
     # {"job_id": "20250209_150714"}
     ```
+  Or 
+
+2. Fetch videos using the YouTube Data API v3
+
+  ```shell
+    curl -X POST https://ytdt.ceduth.dev/api/external/fetch \
+    -H "Content-Type: application/json" \
+    -d '{ "video_ids": ["Znm_glAFMUQ"] }'
+  ```
+
 
 3. Check job status:
 
@@ -175,7 +207,7 @@ Example:
 ```bash
 chmod +x plays_api_x_website.py
 
-PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/yt-retriever/backend/  \
+PYTHONPATH=$PYTHONPATH:.  \
 ./scripts/plays_api_x_website.py data/video-ids-three.csv \
   --include_fields=published_at,upload_date,duration,view_count,scraped_published_at,scraped_upload_date,scraped_upload_date,scraped_duration,scraped_view_count
 ```
@@ -210,23 +242,19 @@ available_videos.py data/wc_jfp_youtube_video_d.csv -u data/unavailable_videos.c
 ## Deploy
 
 
-## Test locally
+### Deploy locally
+
 
 ```shell
-PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/Projects/yt-retriever uvicorn api.main:app \
-  --host 127.0.0.1 --port 8000 --reload
-```
-
-```shell
-docker build -t yt-retriever .
-docker run -p 8000:80 yt-retriever
+docker build -t ytdt-api .
+docker run -p 8000:80 ytdt-api
 ```
 
 Open http://localhost:8000 
 
 
 
-## Deploy to Kubernetes 
+### Deploy to Kubernetes 
 
 1. Add following secrets to GitHub repository
 
@@ -236,6 +264,6 @@ gh secret set HARBOR_PASSWORD --body "your-password-value"
 gh secret set YT_API_KEY --body "your-youtube-api-key"
 ```
 
-## TODO
+## Known Bugs
 
-* Fix comments count = 0 most of the time
+* Comments count return from scrapping has 0 value most of the time.

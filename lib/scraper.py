@@ -33,10 +33,10 @@ logging.basicConfig(level=LOG_LEVEL)
 
 class YouTubeVideoScraper:
 
-    def __init__(self, concurrency=IO_CONCURRENCY_LIMIT):
+    def __init__(self, concurrency=None):
         self.browser = None
         self.page = None
-        self.concurrency = concurrency
+        self.concurrency = concurrency or int(IO_CONCURRENCY_LIMIT)
 
     async def __aenter__(self):
         self.playwright = await async_playwright().start()
@@ -376,7 +376,7 @@ class YouTubeVideoScraper:
                 return await aiometer.run_all([
                     functools.partial(_scrape_to_pipeline, pipeline, i, v)
                     for i, v in enumerate(tqdm(video_ids, desc=desc))
-                ], max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
+                ], max_per_second=IO_RATE_LIMIT, max_at_once=self.concurrency)
 
         return await run_tasks(video_ids)
 

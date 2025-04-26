@@ -35,6 +35,6 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          IMAGE_TAG=registry.ceduth.dev/jfp/yt-retriever:latest
+          IMAGE_TAG=registry.ceduth.dev/jfp/ytdt-api:latest
           docker build -t $IMAGE_TAG .
           docker push $IMAGE_TAG
