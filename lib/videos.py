@@ -115,7 +115,7 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
                          for i, v in enumerate(tqdm(response['items'], desc=batch_desc))]
 
                 for item, err_code in (await aiometer.run_all(
-                  tasks, max_per_second=IO_RATE_LIMIT, max_at_once=int(IO_CONCURRENCY_LIMIT))
+                  tasks, max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
                 ):
                     key = 'videos' if err_code > -1 else 'errors'
                     item = asdict(item)
