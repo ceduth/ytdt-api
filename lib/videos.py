@@ -71,10 +71,11 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
     async def _parse_to_pipeline(pipeline, task_index, item):
 
         try:
-            if progress_callback:
-                await progress_callback(task_index, item)
 
             v = parse_video(item)  # validate the data!
+            if progress_callback:
+                await progress_callback(task_index, v.video_id)
+
             return await pipeline.enqueue(asdict(v)), 0
 
         except Exception as e:
