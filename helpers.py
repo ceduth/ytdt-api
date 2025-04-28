@@ -61,3 +61,7 @@ map_language = lambda lang: bidirectional_lookup({
   "Chinese": "zh",
   "Japanese": "ja"
 }, lang)
+
+
+# Extract language and country codes from locale code eg. 'en-US', 'en_US'
+parse_locale = lambda code: (*((code or '').replace('_', '-').split('-') + [None]),)[:2]

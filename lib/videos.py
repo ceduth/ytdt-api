@@ -16,11 +16,12 @@ from glom import glom
 from tqdm import tqdm
 from googleapiclient.discovery import build
 
+
 from models import DataPipeline, Video, fields, asdict
 from helpers import \
     IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT, \
     LOG_LEVEL, YT_API_KEY, \
-    map_language
+    map_language, parse_locale
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -31,9 +32,7 @@ youtube = build('youtube', 'v3', developerKey=YT_API_KEY)
 def parse_video(item):
     """ Parse dict data into Video object """
 
-    # Extract language and country codes from locale code eg. 'en-US'
-    langage_code, country_code, *_  = \
-        glom(item, 'snippet.defaultAudioLanguage', default='-').split('-')
+    langage_code, country_code = parse_locale(glom(item, 'snippet.defaultAudioLanguage'))
 
     video = Video(
         video_id=item['id'],
@@ -114,9 +113,13 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
                 tasks = [functools.partial(_parse_to_pipeline, pipeline, i, v)
                          for i, v in enumerate(tqdm(response['items'], desc=batch_desc))]
 
-                for item, err_code in (await aiometer.run_all(
+                for result in (await aiometer.run_all(
                   tasks, max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
                 ):
+                    if result is None:
+                        continue  
+
+                    item, err_code = result 
                     key = 'videos' if err_code > -1 else 'errors'
                     item = asdict(item)
                     results[key] += [item]
