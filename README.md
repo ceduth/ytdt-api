@@ -84,11 +84,9 @@ export \
     PYTHONPATH=$PYTHONPATH:. uvicorn api.main:app \
       --host 127.0.0.1 --port 8000 --reload
     ```
-
+    or
     ```shell
-    cd backend
-    PYTHONPATH=$PYTHONPATH:/Users/ceduth/Devl/JFP/ytdt-api/backend/api  \
-      uvicorn main:app --reload --app-dir=./api
+    PYTHONPATH=$PYTHONPATH:. uvicorn main:app --reload --app-dir=./api
     ```
 
 ### API routes
