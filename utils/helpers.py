@@ -1,42 +1,22 @@
-import logging
 import os
+import csv
 import pathlib
-
 from bidict import bidict
-from dotenv import load_dotenv
-
-
-load_dotenv()
-
-# Requires your own API key
-YT_API_KEY = os.environ["YT_API_KEY"]
-
-# Set to True to enable debug mode
-LOG_LEVEL = int(os.getenv("LOG_LEVEL", logging.INFO))
-
-# timeout to scrape/fetch, default 30000
-IO_TIMEOUT = int(os.getenv("IO_TIMEOUT", 90000))
-
-# asyncio semaphore limit
-IO_CONCURRENCY_LIMIT = int(os.getenv("IO_CONCURRENCY_LIMIT", 5))
-
-# max number of tasks spawned per second
-IO_RATE_LIMIT = int(os.getenv("IO_RATE_LIMIT", 1))
-
-# I/O size incl. queue length before flushing to storage
-# also 50 max video ids currently allowed to be requested at once by the YT API.
-IO_BATCH_SIZE = int(os.getenv("IO_BATCH_SIZE", 50))
 
 
 __all__ = (
-  'IO_TIMEOUT', 'IO_CONCURRENCY_LIMIT', 'IO_RATE_LIMIT', 'IO_BATCH_SIZE',
-  'file_exists', 'remove_file'
+  'file_exists', 'remove_file', 'map_language', 'parse_locale', 'bidirectional_lookup',
+  'load_video_ids_from_csv', 'split_kwargs'
 )
+
 
 
 file_exists = lambda path: (os.path.isfile(path) and os.path.getsize(path) > 0)
 
 remove_file = lambda path, missing_ok=True: pathlib.Path(path).unlink(missing_ok)
+
+# Extract language and country codes from locale code eg. 'en-US', 'en_US'
+parse_locale = lambda code: (*((code or '').replace('_', '-').split('-') + [None]),)[:2]
 
 
 def bidirectional_lookup(mapping: dict, key_or_value: str, raise_exc=True):
@@ -61,3 +41,17 @@ map_language = lambda lang: bidirectional_lookup({
   "Chinese": "zh",
   "Japanese": "ja"
 }, lang)
+
+
+
+
+def load_video_ids_from_csv(path: str, column: str) -> list[str]:
+    with open(path, newline='', encoding='utf-8-sig') as f:
+        reader = csv.DictReader(f)
+        return [row[column].strip() for row in reader if row.get(column)]
+    
+
+def split_kwargs(keys_to_extract, kwargs):
+    extracted = {k: kwargs[k] for k in keys_to_extract if k in kwargs}
+    rest = {k: v for k, v in kwargs.items() if k not in keys_to_extract}
+    return extracted, rest
