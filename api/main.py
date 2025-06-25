@@ -7,7 +7,7 @@ import sys
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
-from helpers import IO_TIMEOUT
+from utils.env import IO_TIMEOUT, CORS_ALLOW_ORIGINS, CORS_ALLOW_CREDENTIALS
 from lib.videos import fetch_multiple_videos
 from lib.scraper import scrape_multiple_videos
 from pydantic import BaseModel
@@ -22,14 +22,14 @@ app = FastAPI()
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=[CORS_ALLOW_ORIGINS],
+    allow_credentials=CORS_ALLOW_CREDENTIALS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Store scraping jobs and their progress
-scraping_jobs: Dict[str, dict] = {}
+cached_jobs: Dict[str, dict] = {}
 
 
 class ScrapeRequest(BaseModel):
@@ -59,11 +59,11 @@ async def run_tool(tool_name, job_id: str, video_ids: List[str]):
 
     try:
 
-        scraping_jobs[job_id]["status"] = "running"
+        cached_jobs[job_id]["status"] = "running"
         total = len(video_ids)
 
         async def progress_callback(completed: int, current_video: str):
-            scraping_jobs[job_id]["progress"] = {
+            cached_jobs[job_id]["progress"] = {
                 "completed": completed,
                 "total": total,
                 "current_video": current_video
@@ -72,12 +72,12 @@ async def run_tool(tool_name, job_id: str, video_ids: List[str]):
         results = await start_task(
             video_ids, progress_callback=progress_callback, **pipeline_kwargs)
 
-        scraping_jobs[job_id]["status"] = "completed"
-        scraping_jobs[job_id]["results"] = results
+        cached_jobs[job_id]["status"] = "completed"
+        cached_jobs[job_id]["results"] = results
 
     except Exception as e:
-        scraping_jobs[job_id]["status"] = "failed"
-        scraping_jobs[job_id]["error"] = str(e)
+        cached_jobs[job_id]["status"] = "failed"
+        cached_jobs[job_id]["error"] = str(e)
 
 
 @app.post("/{tool_name}")
@@ -89,8 +89,8 @@ async def start_tool(request: ScrapeRequest, background_tasks: BackgroundTasks, 
     print(f"Starting scraping job with tool: {tool_name}")  
     print(f"Video IDs: {request.video_ids}")
 
-    job_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-    scraping_jobs[job_id] = {
+    job_id = f"{tool_name}-{datetime.now().strftime("%Y%m%d_%H%M%S")}"
+    cached_jobs[job_id] = {
         "status": "pending",
         "progress": {
             "completed": 0,
@@ -108,21 +108,21 @@ async def start_tool(request: ScrapeRequest, background_tasks: BackgroundTasks, 
 @app.get("/status/{job_id}")
 async def get_status(job_id: str):
 
-    if job_id not in scraping_jobs:
+    if job_id not in cached_jobs:
         return {"error": "Job not found"}
-    return scraping_jobs[job_id]
+    return cached_jobs[job_id]
 
 
 @app.get("/results/{job_id}")
 async def get_results(job_id: str):
 
-    if job_id not in scraping_jobs:
+    if job_id not in cached_jobs:
         return {"error": "Job not found"}
 
-    if scraping_jobs[job_id]["status"] != "completed":
+    if cached_jobs[job_id]["status"] != "completed":
         return {"error": "Job not completed"}
 
-    return {"results": scraping_jobs[job_id]["results"]}
+    return {"results": cached_jobs[job_id]["results"]}
 
 
 @app.get("/")

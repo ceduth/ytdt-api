@@ -2,9 +2,11 @@ import time
 import logging
 from collections import Counter
 
-from helpers import IO_BATCH_SIZE, remove_file
+from utils.helpers import remove_file
 from lib.exceptions import AsyncException
-from lib.to_csv import save_to_csv, WriteStats
+from utils.csv import save_to_csv, WriteStats
+from utils.env import IO_BATCH_SIZE
+
 
 __all__ = (
     'DataPipeline',

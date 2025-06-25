@@ -18,10 +18,10 @@ from googleapiclient.discovery import build
 
 
 from models import DataPipeline, Video, fields, asdict
-from helpers import \
+from utils.helpers import map_language, parse_locale
+from utils.env import \
     IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT, \
-    LOG_LEVEL, YT_API_KEY, \
-    map_language, parse_locale
+    LOG_LEVEL, YT_API_KEY
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -106,7 +106,7 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
                 # fetch batches of IO_DATA_QUEUE_LIMIT videos ...
                 response = request.execute()
 
-                batch_desc = 'fetching batch #{current} ie. videos {start}-{end}/{num_videos}: ' \
+                batch_desc = 'fetched batch #{current} ie. videos {start}-{end}/{num_videos}: ' \
                     .format(**{"current": i + 1, "start": 1 + i * IO_BATCH_SIZE,
                                "end": min((i + 1) * IO_BATCH_SIZE, num_videos),
                                "num_videos": num_videos})
@@ -141,7 +141,7 @@ if __name__ == '__main__':
 
 
     dry_run = False
-    csv_input_path = '../data/video-ids-three.csv'
+    csv_input_path = 'data/video-ids-three.csv'
     csv_output_path = f"{csv_input_path}-api-out.xlsx"
 
     pipeline_kwargs = {
