@@ -93,40 +93,32 @@ export \
 
 1. Start a scraping job
 
-  Online:
-
+  ```shell
+  curl -X POST http://localhost:8000/scrape \
+    -H "Content-Type: application/json" \
+    -d '{
+      "video_ids": [
+        "9eHseYggb-I",  
+        "W7Tkx2oXIyk",  
+        "uuo2KqoJxsc",
+        "UJfX-ZrDZmU",
+        "0_jC8Lg-oxY"
+      ]
+    }'
+  
+  # Response example:
+  # {"job_id": "20250209_150714"}
   ```
-  curl -X POST https://ytdt.ceduth.dev/api/external/scrape \
-  -H "Content-Type: application/json" \
-  -d '{ "video_ids": ["Znm_glAFMUQ"] }'
-  ```
-
-  Or locally, iff followed above dev setup:
-
-    ```shell
-    curl -X POST http://localhost:8000/scrape \
-      -H "Content-Type: application/json" \
-      -d '{
-        "video_ids": [
-          "9eHseYggb-I",  
-          "W7Tkx2oXIyk",  
-          "uuo2KqoJxsc",
-          "UJfX-ZrDZmU",
-          "0_jC8Lg-oxY"
-        ]
-      }'
-    
-    # Response example:
-    # {"job_id": "20250209_150714"}
-    ```
-  Or 
 
 2. Fetch videos using the YouTube Data API v3
 
   ```shell
-    curl -X POST https://ytdt.ceduth.dev/api/external/fetch \
+  curl -X POST http://localhost:8000/fetch \
     -H "Content-Type: application/json" \
     -d '{ "video_ids": ["Znm_glAFMUQ"] }'
+
+  # Response example:
+  # {"job_id":"20250512_190045"}
   ```
 
 
@@ -184,8 +176,26 @@ export \
 
 ## Scripts
 
-### Script `plays_api_x_website.py`
+First add project dir `ytdt-api/` to PYTHONPATH:
 
+```shell
+export PYTHONPATH=${PYTHONPATH}:.
+```
+
+### Script `scraper.py`
+
+Scrapes video ids. 
+
+```shell
+
+# Run with preset video ids (incl. unavailable videos for completeness sake)
+python lib/scraper.py
+
+# Load video ids from file
+python lib/scraper.py --csv_input_path data/video-ids-three.csv
+```
+
+### Script `plays_api_x_website.py`
 
 Compares YouTube api plays vs. youtube.com plays for every YouTube video 
 
@@ -262,6 +272,28 @@ gh secret set HARBOR_USERNAME --body "your-username"
 gh secret set HARBOR_PASSWORD --body "your-password-value"
 gh secret set YT_API_KEY --body "your-youtube-api-key"
 ```
+
+
+## Testing the YouTube Data API v3
+
+* With your private YouTube Data API v3 key
+
+  ```shell
+  YT_API_KEY=AIzaSyDP5X-your_key_here 
+  ```
+
+* Query specific video IDs
+
+  Optional part= values:
+  - snippet (title, channel, etc.)
+  - statistics (views, likes, etc.)
+  - contentDetails (duration, etc.)
+
+  ```shell
+  YT_VIDEO_IDS=gIDYvg73RuM,...
+  curl "https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${YT_VIDEO_IDS}&key=${YT_API_KEY}"
+  ```
+
 
 ## Known Bugs
 

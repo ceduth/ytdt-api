@@ -5,12 +5,13 @@ pip install playwright
 playwright install  # To download browser binaries
 """
 
-import functools
 import os
 import re
-import asyncio
 import json
+import asyncio
 import logging
+import argparse
+import functools
 
 import urllib.parse
 from collections import defaultdict
@@ -24,8 +25,9 @@ from tqdm import tqdm
 
 from models import DataPipeline, Video, asdict
 from lib.exceptions import AsyncException, VideoError
-from helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, LOG_LEVEL, \
-    map_language
+from utils.json import DateTimeEncoder
+from utils.env import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, LOG_LEVEL
+from utils.helpers import map_language, load_video_ids_from_csv
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -405,27 +407,50 @@ async def scrape_multiple_videos(video_ids, progress_callback=None, **pipeline_k
 
 if __name__ == "__main__":
     """
-    Example usage: python lib/scraper.py
+    Scrape video_ids
     Watch for output file: data/youtube_video_stats.json
+    Runs with dry_run=False, instructing not to flush pieline to disk.
+
+    Example usage (ran from dir ytdt-api/)
+        PYTHONPATH=${PYTHONPATH}:. python lib/scraper.py
+
     """
 
-    # video IDs (replace with actual video IDs)
+    parser = argparse.ArgumentParser(description="Scrape video metadata from YouTube")
+    parser.add_argument('--csv_input_path', type=str, help='Input CSV file path with video IDs')
+    parser.add_argument('--csv_output_path', type=str, help='Optional output CSV file path')
+    parser.add_argument('--ids_column', type=str, default='yt_video_id', help="Column name containing video IDs")
+    parser.add_argument('--timeout', type=int, default=IO_TIMEOUT, help="Scrape timeout in ms")
+    parser.add_argument('--json_output_path', type=str, default='data/youtube_video_stats.json',
+                        help='Output JSON file path')
+
+    args = parser.parse_args()
+
+    # Demo video IDs
     video_ids = [
 
-        # "Video unavailable"
+        # Those videos are unavailable:
         "9eHseYggb-I",  # This video is private
         "W7Tkx2oXIyk",  # This video is no longer available because the YouTube account associated with this video has been closed.
 
-        # These are okay
+        # These have "Unlisted" tag under their video name in youtube.com
+        # but they would play well
+        "__5bvLohw5U",  # Unlisted
+        "__c6BSSKIXs",  # Unlisted
+
+        # These are okay as of 06/25/2025
         "uuo2KqoJxsc",
         "UJfX-ZrDZmU",
-        "0_jC8Lg-oxY"
+        "0_jC8Lg-oxY",
     ]
 
+    if args.csv_input_path:
+        video_ids = load_video_ids_from_csv(args.csv_input_path, args.ids_column)
+
     pipeline_kwargs = {
-        "csv_output_path": f"data/video-ids-three-scraped-out.csv",
-        "name": f"Scrape videos with {IO_TIMEOUT}ms timeout",
-        "dry_run": True,
+        "csv_output_path": args.csv_output_path or "data/scraped_output.csv",
+        "name": f"Scrape videos with {args.timeout}ms timeout",
+        "dry_run": False,
     }
 
     # progress callback
@@ -435,8 +460,8 @@ if __name__ == "__main__":
     results = asyncio.run(scrape_multiple_videos(
         video_ids, progress_callback=print_progress, **pipeline_kwargs))
 
-    # optionally, save results to a JSON file
-    with open('../data/youtube_video_stats.json', 'w', encoding='utf-8-sig') as f:
-        print(json.dumps(results, indent=2))
-        json.dump(results, f, indent=2, ensure_ascii=False)
+    # Save to JSON
+    with open(args.json_output_path, 'w', encoding='utf-8-sig') as f:
+        # json.dump(results, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+        print(json.dumps(results, indent=2, cls=DateTimeEncoder))
 
