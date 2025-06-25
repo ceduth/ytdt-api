@@ -6,7 +6,7 @@ from bidict import bidict
 
 __all__ = (
   'file_exists', 'remove_file', 'map_language', 'parse_locale', 'bidirectional_lookup',
-  'load_video_ids_from_csv',
+  'load_video_ids_from_csv', 'split_kwargs'
 )
 
 
@@ -49,3 +49,9 @@ def load_video_ids_from_csv(path: str, column: str) -> list[str]:
     with open(path, newline='', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f)
         return [row[column].strip() for row in reader if row.get(column)]
+    
+
+def split_kwargs(keys_to_extract, kwargs):
+    extracted = {k: kwargs[k] for k in keys_to_extract if k in kwargs}
+    rest = {k: v for k, v in kwargs.items() if k not in keys_to_extract}
+    return extracted, rest
