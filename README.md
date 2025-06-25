@@ -184,15 +184,140 @@ export PYTHONPATH=${PYTHONPATH}:.
 
 ### Script `scraper.py`
 
-Scrapes video ids. 
-
+Scrapes video ids. Look for output in: `data/youtube_video_stats.json`
 ```shell
-
-# Run with preset video ids (incl. unavailable videos for completeness sake)
-python lib/scraper.py
-
 # Load video ids from file
 python lib/scraper.py --csv_input_path data/video-ids-three.csv
+
+# Using demo/preset video ids (incl. unavailable videos for completeness sake)
+python lib/scraper.py
+```
+
+Results for the demo/preset below. 
+```json
+{
+  "errors": [
+    {
+      "message": "🚫 async error: Error scraping video \"9eHseYggb-I\"",
+      "detail": "Page.wait_for_selector: Timeout 90000ms exceeded.\nCall log:\n  - waiting for locator(\"h1.ytd-watch-metadata yt-formatted-string\") to be visible\n",
+      "errors": "Traceback (most recent call last):\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/lib/scraper.py\", line 194, in scrape_video_stats\n    await page.wait_for_selector('h1.ytd-watch-metadata yt-formatted-string', state='visible', timeout=90000)\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/async_api/_generated.py\", line 8162, in wait_for_selector\n    await self._impl_obj.wait_for_selector(\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_page.py\", line 424, in wait_for_selector\n    return await self._main_frame.wait_for_selector(**locals_to_params(locals()))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_frame.py\", line 323, in wait_for_selector\n    await self._channel.send(\"waitForSelector\", locals_to_params(locals()))\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py\", line 61, in send\n    return await self._connection.wrap_api_call(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py\", line 528, in wrap_api_call\n    raise rewrite_error(error, f\"{parsed_st['apiName']}: {error}\") from None\nplaywright._impl._errors.TimeoutError: Page.wait_for_selector: Timeout 90000ms exceeded.\nCall log:\n  - waiting for locator(\"h1.ytd-watch-metadata yt-formatted-string\") to be visible\n\n",
+      "video_id": "9eHseYggb-I"
+    },
+    {
+      "message": "🚫 async error: Error scraping video \"W7Tkx2oXIyk\"",
+      "detail": "Page.wait_for_selector: Timeout 90000ms exceeded.\nCall log:\n  - waiting for locator(\"h1.ytd-watch-metadata yt-formatted-string\") to be visible\n",
+      "errors": "Traceback (most recent call last):\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/lib/scraper.py\", line 194, in scrape_video_stats\n    await page.wait_for_selector('h1.ytd-watch-metadata yt-formatted-string', state='visible', timeout=90000)\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/async_api/_generated.py\", line 8162, in wait_for_selector\n    await self._impl_obj.wait_for_selector(\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_page.py\", line 424, in wait_for_selector\n    return await self._main_frame.wait_for_selector(**locals_to_params(locals()))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_frame.py\", line 323, in wait_for_selector\n    await self._channel.send(\"waitForSelector\", locals_to_params(locals()))\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py\", line 61, in send\n    return await self._connection.wrap_api_call(\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/ceduth/Devl/Projects/ytdt/ytdt-api/.venv/lib/python3.12/site-packages/playwright/_impl/_connection.py\", line 528, in wrap_api_call\n    raise rewrite_error(error, f\"{parsed_st['apiName']}: {error}\") from None\nplaywright._impl._errors.TimeoutError: Page.wait_for_selector: Timeout 90000ms exceeded.\nCall log:\n  - waiting for locator(\"h1.ytd-watch-metadata yt-formatted-string\") to be visible\n\n",
+      "video_id": "W7Tkx2oXIyk"
+    }
+  ],
+  "videos": [
+    {
+      "video_id": "__5bvLohw5U",
+      "title": "Religión Cuarto periodo",
+      "published_at": "2020-10-22T00:00:00",
+      "upload_date": "Unknown",
+      "language_code": "Unknown",
+      "view_count": 37,
+      "url": "https://www.youtube.com/watch?v=__5bvLohw5U",
+      "thumbnail_url": "Unknown",
+      "channel_id": "Diblag",
+      "channel_name": "Diana Blanco",
+      "language_name": "Unknown",
+      "country": "Unknown",
+      "likes": 3,
+      "comments": 0,
+      "shares": 0,
+      "dislikes": 0,
+      "subscribers_gained": 0,
+      "subscribers_lost": 0,
+      "duration": 440
+    },
+    {
+      "video_id": "__c6BSSKIXs",
+      "title": "JESUS Mamasa 50 Jesus Carries His Cross",
+      "published_at": "2050-10-04T20:22:00",
+      "upload_date": "Unknown",
+      "language_code": "Unknown",
+      "view_count": 3,
+      "url": "https://www.youtube.com/watch?v=__c6BSSKIXs",
+      "thumbnail_url": "Unknown",
+      "channel_id": "napielite3171",
+      "channel_name": "Napi Elite",
+      "language_name": "Unknown",
+      "country": "Unknown",
+      "likes": 0,
+      "comments": 0,
+      "shares": 0,
+      "dislikes": 0,
+      "subscribers_gained": 0,
+      "subscribers_lost": 0,
+      "duration": 215
+    },
+    {
+      "video_id": "uuo2KqoJxsc",
+      "title": "God's Rescue Plan",
+      "published_at": "2023-04-13T00:00:00",
+      "upload_date": "Unknown",
+      "language_code": "Unknown",
+      "view_count": 4597735,
+      "url": "https://www.youtube.com/watch?v=uuo2KqoJxsc",
+      "thumbnail_url": "Unknown",
+      "channel_id": "Godlife",
+      "channel_name": "GodLife.com",
+      "language_name": "Unknown",
+      "country": "Unknown",
+      "likes": 0,
+      "comments": 0,
+      "shares": 0,
+      "dislikes": 0,
+      "subscribers_gained": 0,
+      "subscribers_lost": 0,
+      "duration": 178
+    },
+    {
+      "video_id": "UJfX-ZrDZmU",
+      "title": "Neden İsa Mesih Bizim İçin Öldü?",
+      "published_at": "2020-11-22T00:00:00",
+      "upload_date": "Unknown",
+      "language_code": "Unknown",
+      "view_count": 1773947,
+      "url": "https://www.youtube.com/watch?v=UJfX-ZrDZmU",
+      "thumbnail_url": "Unknown",
+      "channel_id": "IsaMesihFilm",
+      "channel_name": "İsa Mesih Film Projeleri",
+      "language_name": "Unknown",
+      "country": "Unknown",
+      "likes": 848,
+      "comments": 765,
+      "shares": 0,
+      "dislikes": 0,
+      "subscribers_gained": 0,
+      "subscribers_lost": 0,
+      "duration": 180
+    },
+    {
+      "video_id": "0_jC8Lg-oxY",
+      "title": "لماذا كان على يسوع أن يموت؟",
+      "published_at": "2022-04-26T00:00:00",
+      "upload_date": "Unknown",
+      "language_code": "Unknown",
+      "view_count": 1327205,
+      "url": "https://www.youtube.com/watch?v=0_jC8Lg-oxY",
+      "thumbnail_url": "Unknown",
+      "channel_id": "Talmazaonline",
+      "channel_name": "TalmazaOnline",
+      "language_name": "Unknown",
+      "country": "Unknown",
+      "likes": 25,
+      "comments": 2,
+      "shares": 0,
+      "dislikes": 0,
+      "subscribers_gained": 0,
+      "subscribers_lost": 0,
+      "duration": 180
+    }
+  ]
+}
 ```
 
 ### Script `plays_api_x_website.py`
