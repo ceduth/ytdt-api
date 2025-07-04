@@ -154,6 +154,66 @@ class YouTubeVideoScraper:
 
         return channel_details
 
+    async def _extract_unlisted_status(self, page):
+        """
+        Extract whether a YouTube video is unlisted by checking for the "Unlisted" badge.
+        
+        :param Page page: Playwright page object
+        :returns bool: True if video is unlisted, False otherwise
+        """
+        try:
+            # Check for unlisted badge - it typically appears in the video metadata area
+            unlisted_selectors = [
+                # Primary selector for unlisted badge
+                'ytd-badge-supported-renderer[aria-label*="Unlisted"]',
+                'ytd-badge-supported-renderer:has-text("Unlisted")',
+                # Alternative selectors for unlisted status
+                'yt-formatted-string:has-text("Unlisted")',
+                '.badge:has-text("Unlisted")',
+                '[aria-label*="Unlisted"]',
+                # Sometimes it appears in the video info section
+                'ytd-video-primary-info-renderer :has-text("Unlisted")',
+                'ytd-video-secondary-info-renderer :has-text("Unlisted")',
+            ]
+            
+            for selector in unlisted_selectors:
+                try:
+                    element = await page.query_selector(selector)
+                    if element:
+                        # Double-check the text content contains "Unlisted"
+                        text_content = await element.inner_text()
+                        if "Unlisted" in text_content:
+                            logging.debug(f'Video is unlisted - found badge with selector: {selector}')
+                            return True
+                        
+                        # Also check aria-label for accessibility text
+                        aria_label = await element.get_attribute('aria-label')
+                        if aria_label and "Unlisted" in aria_label:
+                            logging.debug(f'Video is unlisted - found aria-label with selector: {selector}')
+                            return True
+                except Exception as e:
+                    logging.debug(f'Selector {selector} failed: {e}')
+                    continue
+            
+            # Additional check in the video description/info area
+            try:
+                # Look for unlisted indicator in the broader video info section
+                info_section = await page.query_selector('ytd-video-primary-info-renderer')
+                if info_section:
+                    info_text = await info_section.inner_text()
+                    if "Unlisted" in info_text:
+                        logging.debug('Video is unlisted - found in video info section')
+                        return True
+            except Exception as e:
+                logging.debug(f'Error checking video info section for unlisted status: {e}')
+            
+            logging.debug('Video is not unlisted')
+            return False
+            
+        except Exception as e:
+            logging.debug(f'Error extracting unlisted status: {e}')
+            return False
+    
     async def scrape_video_stats(self, video_id):
         """
         Scrape comprehensive statistics for a specific YouTube video.
@@ -178,6 +238,7 @@ class YouTubeVideoScraper:
             "channel_name": "Unknown",
             "url": video_url,
             "thumbnail_url": "Unknown",
+            "is_unlisted": False,  # Add this line
         }
 
         try:
@@ -198,6 +259,13 @@ class YouTubeVideoScraper:
             
             # Give JavaScript more time to execute
             await asyncio.sleep(3)
+
+            # Extract unlisted status
+            try:
+                video_stats["is_unlisted"] = await self._extract_unlisted_status(page)
+            except Exception as e:
+                logging.debug(f'Could not extract unlisted status for video "{video_id}": {e}')
+                video_stats["is_unlisted"] = False
 
             # Extract video title
             try:
@@ -438,11 +506,15 @@ if __name__ == "__main__":
         # but they would play well
         "__5bvLohw5U",  # Unlisted
         "__c6BSSKIXs",  # Unlisted
+        "uuo2KqoJxsc",  # Unlisted
 
-        # These are okay as of 06/25/2025
-        "uuo2KqoJxsc",
-        "UJfX-ZrDZmU",
-        "0_jC8Lg-oxY",
+        # These public videos are okay as of 06/25/2025
+        # But only default IDs provided by YouTube Data API Explorer are working
+        "Ks-_Mh1QhMc",  # Default at https://developers.google.com/youtube/v3/docs/videos/list
+        "0_jC8Lg-oxY",  # لماذا كان على يسوع أن يموت؟
+        "UJfX-ZrDZmU",  # Neden İsa Mesih Bizim İçin Öldü?
+        "LsWOcjQF0Ns",  # Emali - Surrender [Official Audio]
+
     ]
 
     if args.csv_input_path:

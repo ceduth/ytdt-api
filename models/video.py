@@ -43,6 +43,7 @@ class Video:
     language_code: str
     # duration: str
     view_count: str
+    is_unlisted: bool
 
     # Optional metadata
     url: str = ''
