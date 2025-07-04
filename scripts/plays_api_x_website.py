@@ -7,7 +7,7 @@ import pandas as pd
 
 from lib.videos import fetch_multiple_videos
 from lib.scraper import scrape_multiple_videos
-from helpers import IO_TIMEOUT
+from utils.env import IO_TIMEOUT
 
 
 logging.basicConfig(
@@ -37,10 +37,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('csv_input_path', type=str, help='Input CSV file name. No Excel here yet!')
     parser.add_argument('--csv_output_path', type=str, help='Output XLSX file name')
-    parser.add_argument('--ids_column', dest='ids_column', type=str, default='yt_video_id',
-                        help="Name of video IDs column")
-    parser.add_argument('--include_fields', dest='include_fields', type=str,
-                        help="Video fields to exclude (comma separated)")
+    parser.add_argument('--ids_column', dest='ids_column', type=str, default='yt_video_id', help="Name of video IDs column")
+    parser.add_argument('--include_fields', dest='include_fields', type=str, help="Video fields to exclude (comma separated)")
     parser.add_argument('--dry_run', dest='dry_run', type=bool, help="Whether to write output file")
 
     # read arguments from command line

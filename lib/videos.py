@@ -16,11 +16,12 @@ from glom import glom
 from tqdm import tqdm
 from googleapiclient.discovery import build
 
+
 from models import DataPipeline, Video, fields, asdict
-from helpers import \
+from utils.helpers import map_language, parse_locale
+from utils.env import \
     IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT, \
-    LOG_LEVEL, YT_API_KEY, \
-    map_language
+    LOG_LEVEL, YT_API_KEY
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -31,9 +32,7 @@ youtube = build('youtube', 'v3', developerKey=YT_API_KEY)
 def parse_video(item):
     """ Parse dict data into Video object """
 
-    # Extract language and country codes from locale code eg. 'en-US'
-    langage_code, country_code, *_  = \
-        glom(item, 'snippet.defaultAudioLanguage', default='-').split('-')
+    langage_code, country_code = parse_locale(glom(item, 'snippet.defaultAudioLanguage'))
 
     video = Video(
         video_id=item['id'],
@@ -72,10 +71,11 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
     async def _parse_to_pipeline(pipeline, task_index, item):
 
         try:
-            if progress_callback:
-                await progress_callback(task_index, item)
 
             v = parse_video(item)  # validate the data!
+            if progress_callback:
+                await progress_callback(task_index, v.video_id)
+
             return await pipeline.enqueue(asdict(v)), 0
 
         except Exception as e:
@@ -106,7 +106,7 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
                 # fetch batches of IO_DATA_QUEUE_LIMIT videos ...
                 response = request.execute()
 
-                batch_desc = 'fetching batch #{current} ie. videos {start}-{end}/{num_videos}: ' \
+                batch_desc = 'fetched batch #{current} ie. videos {start}-{end}/{num_videos}: ' \
                     .format(**{"current": i + 1, "start": 1 + i * IO_BATCH_SIZE,
                                "end": min((i + 1) * IO_BATCH_SIZE, num_videos),
                                "num_videos": num_videos})
@@ -114,9 +114,13 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
                 tasks = [functools.partial(_parse_to_pipeline, pipeline, i, v)
                          for i, v in enumerate(tqdm(response['items'], desc=batch_desc))]
 
-                for item, err_code in (await aiometer.run_all(
+                for result in (await aiometer.run_all(
                   tasks, max_per_second=IO_RATE_LIMIT, max_at_once=IO_CONCURRENCY_LIMIT)
                 ):
+                    if result is None:
+                        continue  
+
+                    item, err_code = result 
                     key = 'videos' if err_code > -1 else 'errors'
                     item = asdict(item)
                     results[key] += [item]
@@ -137,7 +141,7 @@ if __name__ == '__main__':
 
 
     dry_run = False
-    csv_input_path = '../data/video-ids-three.csv'
+    csv_input_path = 'data/video-ids-three.csv'
     csv_output_path = f"{csv_input_path}-api-out.xlsx"
 
     pipeline_kwargs = {

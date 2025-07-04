@@ -5,12 +5,13 @@ pip install playwright
 playwright install  # To download browser binaries
 """
 
-import functools
 import os
 import re
-import asyncio
 import json
+import asyncio
 import logging
+import argparse
+import functools
 
 import urllib.parse
 from collections import defaultdict
@@ -24,8 +25,9 @@ from tqdm import tqdm
 
 from models import DataPipeline, Video, asdict
 from lib.exceptions import AsyncException, VideoError
-from helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, LOG_LEVEL, \
-    map_language
+from utils.json import DateTimeEncoder
+from utils.env import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, LOG_LEVEL
+from utils.helpers import map_language, load_video_ids_from_csv, split_kwargs
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -33,13 +35,13 @@ logging.basicConfig(level=LOG_LEVEL)
 
 class YouTubeVideoScraper:
 
-    def __init__(self, concurrency=None, max_per_second=None):
+    def __init__(self, concurrency=None, max_per_second=None, timeout=None):
         self.browser = None
         self.page = None
         self.concurrency = int(concurrency or IO_CONCURRENCY_LIMIT)
         self.max_per_second = int(max_per_second or IO_RATE_LIMIT)
-    
-    
+        self.timeout = int(timeout or IO_TIMEOUT)
+
     async def __aenter__(self):
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
@@ -120,7 +122,7 @@ class YouTubeVideoScraper:
                     channel_id_match.group(1))
 
             # Navigate to About page for more details
-            await page.goto(f"{channel_url}/about", wait_until='networkidle', timeout=IO_TIMEOUT)
+            await page.goto(f"{channel_url}/about", wait_until='networkidle', timeout=self.timeout)
 
             # Try to extract country
             try:
@@ -152,6 +154,66 @@ class YouTubeVideoScraper:
 
         return channel_details
 
+    async def _extract_unlisted_status(self, page):
+        """
+        Extract whether a YouTube video is unlisted by checking for the "Unlisted" badge.
+        
+        :param Page page: Playwright page object
+        :returns bool: True if video is unlisted, False otherwise
+        """
+        try:
+            # Check for unlisted badge - it typically appears in the video metadata area
+            unlisted_selectors = [
+                # Primary selector for unlisted badge
+                'ytd-badge-supported-renderer[aria-label*="Unlisted"]',
+                'ytd-badge-supported-renderer:has-text("Unlisted")',
+                # Alternative selectors for unlisted status
+                'yt-formatted-string:has-text("Unlisted")',
+                '.badge:has-text("Unlisted")',
+                '[aria-label*="Unlisted"]',
+                # Sometimes it appears in the video info section
+                'ytd-video-primary-info-renderer :has-text("Unlisted")',
+                'ytd-video-secondary-info-renderer :has-text("Unlisted")',
+            ]
+            
+            for selector in unlisted_selectors:
+                try:
+                    element = await page.query_selector(selector)
+                    if element:
+                        # Double-check the text content contains "Unlisted"
+                        text_content = await element.inner_text()
+                        if "Unlisted" in text_content:
+                            logging.debug(f'Video is unlisted - found badge with selector: {selector}')
+                            return True
+                        
+                        # Also check aria-label for accessibility text
+                        aria_label = await element.get_attribute('aria-label')
+                        if aria_label and "Unlisted" in aria_label:
+                            logging.debug(f'Video is unlisted - found aria-label with selector: {selector}')
+                            return True
+                except Exception as e:
+                    logging.debug(f'Selector {selector} failed: {e}')
+                    continue
+            
+            # Additional check in the video description/info area
+            try:
+                # Look for unlisted indicator in the broader video info section
+                info_section = await page.query_selector('ytd-video-primary-info-renderer')
+                if info_section:
+                    info_text = await info_section.inner_text()
+                    if "Unlisted" in info_text:
+                        logging.debug('Video is unlisted - found in video info section')
+                        return True
+            except Exception as e:
+                logging.debug(f'Error checking video info section for unlisted status: {e}')
+            
+            logging.debug('Video is not unlisted')
+            return False
+            
+        except Exception as e:
+            logging.debug(f'Error extracting unlisted status: {e}')
+            return False
+    
     async def scrape_video_stats(self, video_id):
         """
         Scrape comprehensive statistics for a specific YouTube video.
@@ -176,12 +238,13 @@ class YouTubeVideoScraper:
             "channel_name": "Unknown",
             "url": video_url,
             "thumbnail_url": "Unknown",
+            "is_unlisted": False,  # Add this line
         }
 
         try:
             # Create a new page in new browser context
             page = await self.browser.new_page(locale='en-US')
-            page.set_default_timeout(IO_TIMEOUT)  
+            page.set_default_timeout(self.timeout)  
 
             # Navigate to the video page, wait for the page to fully load
             # wait_until='networkidle' waits till there are no more than 0 network connections for at least 500 milliseconds.
@@ -196,6 +259,13 @@ class YouTubeVideoScraper:
             
             # Give JavaScript more time to execute
             await asyncio.sleep(3)
+
+            # Extract unlisted status
+            try:
+                video_stats["is_unlisted"] = await self._extract_unlisted_status(page)
+            except Exception as e:
+                logging.debug(f'Could not extract unlisted status for video "{video_id}": {e}')
+                video_stats["is_unlisted"] = False
 
             # Extract video title
             try:
@@ -276,7 +346,7 @@ class YouTubeVideoScraper:
                 date_element = page.locator('div#info yt-formatted-string.ytd-video-primary-info-renderer')
                 video_stats["published_at"] = await date_element.all_inner_texts() if date_element else "Unknown Date"
                 video_stats["published_at"] = parser.parse(" ".join(video_stats["published_at"]), fuzzy=True)
-            except Exception:
+            except Exception as e:
                 logging.debug(f'Could not extract publish date for video "{video_id}": {e}')
 
             # Extract duration from iso8601 into seconds
@@ -287,7 +357,7 @@ class YouTubeVideoScraper:
             try:
                 channel_element = await page.query_selector('yt-formatted-string.ytd-channel-name a')
                 video_stats["channel_name"] = await channel_element.inner_text() if channel_element else "Unknown Channel"
-            except Exception:
+            except Exception as e:
                 logging.debug(f'Could not extract channel name for video "{video_id}": {e}')
 
             # TODO: this is unstable
@@ -383,13 +453,14 @@ class YouTubeVideoScraper:
         return await run_tasks(video_ids)
 
 
-async def scrape_multiple_videos(video_ids, progress_callback=None, **pipeline_kwargs):
+async def scrape_multiple_videos(video_ids, progress_callback=None, **kwargs):
     """
     Scrape videos from YouTube website.
     """
 
     # Create scraper and scrape videos concurrently
-    async with YouTubeVideoScraper() as scraper:
+    scraper_kwargs, pipeline_kwargs = split_kwargs({'concurrency', 'max_per_second', 'timeout'}, kwargs)
+    async with YouTubeVideoScraper(**scraper_kwargs) as scraper:
 
         results = defaultdict(list)
         response = await scraper.scrape_multiple_videos(
@@ -405,27 +476,55 @@ async def scrape_multiple_videos(video_ids, progress_callback=None, **pipeline_k
 
 if __name__ == "__main__":
     """
-    Example usage: python lib/scraper.py
+    Scrape video_ids
     Watch for output file: data/youtube_video_stats.json
+    Runs with dry_run=False, instructing not to flush pieline to disk.
+
+    Example usage (ran from dir ytdt-api/)
+        PYTHONPATH=${PYTHONPATH}:. python lib/scraper.py
+
     """
 
-    # video IDs (replace with actual video IDs)
+    arg_parser = argparse.ArgumentParser(description="Scrape video metadata from YouTube")
+    arg_parser.add_argument('--csv_input_path', type=str, help='Input CSV file path with video IDs')
+    arg_parser.add_argument('--csv_output_path', type=str, help='Optional output CSV file path')
+    arg_parser.add_argument('--ids_column', type=str, default='yt_video_id', help="Column name containing video IDs")
+    arg_parser.add_argument('--timeout', type=int, default=IO_TIMEOUT, help="Scrape timeout in ms")
+    arg_parser.add_argument('--json_output_path', type=str, default='data/youtube_video_stats.json',
+                        help='Output JSON file path')
+
+    args = arg_parser.parse_args()
+
+    # Demo video IDs
     video_ids = [
 
-        # "Video unavailable"
+        # Those videos are unavailable:
         "9eHseYggb-I",  # This video is private
         "W7Tkx2oXIyk",  # This video is no longer available because the YouTube account associated with this video has been closed.
 
-        # These are okay
-        "uuo2KqoJxsc",
-        "UJfX-ZrDZmU",
-        "0_jC8Lg-oxY"
+        # These have "Unlisted" tag under their video name in youtube.com
+        # but they would play well
+        "__5bvLohw5U",  # Unlisted
+        "__c6BSSKIXs",  # Unlisted
+        "uuo2KqoJxsc",  # Unlisted
+
+        # These public videos are okay as of 06/25/2025
+        # But only default IDs provided by YouTube Data API Explorer are working
+        "Ks-_Mh1QhMc",  # Default at https://developers.google.com/youtube/v3/docs/videos/list
+        "0_jC8Lg-oxY",  # لماذا كان على يسوع أن يموت؟
+        "UJfX-ZrDZmU",  # Neden İsa Mesih Bizim İçin Öldü?
+        "LsWOcjQF0Ns",  # Emali - Surrender [Official Audio]
+
     ]
 
+    if args.csv_input_path:
+        video_ids = load_video_ids_from_csv(args.csv_input_path, args.ids_column)
+
     pipeline_kwargs = {
-        "csv_output_path": f"data/video-ids-three-scraped-out.csv",
-        "name": f"Scrape videos with {IO_TIMEOUT}ms timeout",
+        "csv_output_path": args.csv_output_path or "data/scraped_output.csv",
+        "name": f"Scrape videos with {args.timeout}ms timeout",
         "dry_run": True,
+        "timeout": args.timeout,
     }
 
     # progress callback
@@ -435,8 +534,8 @@ if __name__ == "__main__":
     results = asyncio.run(scrape_multiple_videos(
         video_ids, progress_callback=print_progress, **pipeline_kwargs))
 
-    # optionally, save results to a JSON file
-    with open('../data/youtube_video_stats.json', 'w', encoding='utf-8-sig') as f:
-        print(json.dumps(results, indent=2))
-        json.dump(results, f, indent=2, ensure_ascii=False)
+    # Save to JSON
+    with open(args.json_output_path, 'w', encoding='utf-8-sig') as f:
+        json.dump(results, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
+        # print(json.dumps(results, indent=2, cls=DateTimeEncoder))
 

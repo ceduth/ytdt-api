@@ -6,7 +6,7 @@ import logging
 from typing import List, Dict, Any
 from dataclasses import dataclass
 
-from helpers import file_exists
+from utils.helpers import file_exists
 
 
 __all__ = (
@@ -163,3 +163,26 @@ def save_to_csv(rows_to_write, csv_output_path, header=None) -> WriteStats:
 
     except Exception as e:
         logging.error(f"Writing failed: {e}")
+
+
+def load_v():
+
+        # setup dataframe
+    df = pd.read_csv(args.csv_input_path)
+    df.set_index(args.ids_column, drop=False, inplace=True)
+
+    # select fields from resp. input csv, YT api and scraped videos
+    # df = df.reindex(columns=[
+    #   *df.columns.tolist(),
+    #   *[f.name for f in fields(Video)
+    #     if include_fields and f.name in include_fields],
+    #   *[f"scraped_{f.name}" for f in fields(Video)
+    #     if include_fields and f.name in include_fields]
+    # ])
+
+    # drop nan row, assume string cells
+    df.dropna(how='all', inplace=True)
+    df = df.astype(str)
+
+    # fetch videos asynchronously using the YouTube Data API v3
+    video_ids = df[args.ids_column]
