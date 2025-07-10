@@ -2,9 +2,11 @@ import time
 import logging
 from collections import Counter
 
-from helpers import IO_BATCH_SIZE, remove_file
+from utils.helpers import remove_file
 from lib.exceptions import AsyncException
-from lib.to_csv import save_to_csv, WriteStats
+from utils.csv import save_to_csv, WriteStats
+from utils.env import IO_BATCH_SIZE
+
 
 __all__ = (
     'DataPipeline',
@@ -27,8 +29,6 @@ class DataPipeline:
         self.data_queue = []
         self.errors_queue = []
         self.data_queue_limit = data_queue_limit
-
-        self.fields = fields
         self.dry_run = dry_run
         self.name = name
 
@@ -100,24 +100,25 @@ class DataPipeline:
             if not isinstance(item, dict):
                 raise AsyncException(f"item for queue must be a dict, got {type(item)}")
 
-            data_queue, output_path, counts = self._get_queue(is_error)
-            data_queue.append({**item, **kwargs})
+            # Set the current queue, error output and counts
+            queue, output_path, counts = self._get_queue(is_error)
+            queue.append({**item, **kwargs})
             counts.update(queued=1)
 
             if len(self.data_queue) >= self.data_queue_limit \
                     and not self.dry_run:
-                written = save_to_csv(data_queue, output_path)
+                written = save_to_csv(queue, output_path)
                 counts.update(saved=written.items_written, bytes=written.bytes_written)
-                data_queue.clear()
+                queue.clear()
 
             return item
 
         except Exception as e:
-            logging.error(f"Couldn't queue item  {self.last_position}: {e}")
+            logging.error(f"Couldn't queue item  {item}: {e}")
             raise
 
     def _get_queue(self, is_error=False):
-        """ Set the data or error queue to be the current queue"""
+        """ Return the data or error queue based on args"""
 
         data_queue, output_path, counts = (
             self.data_queue, self.csv_output_path, self.stats["data_queue"]

@@ -13,3 +13,6 @@ fastapi==0.115.8
 uvicorn==0.34.0
 pydantic~=2.10.6
 bidict==0.23.1
+debugpy==1.8.14
+
+google-analytics-data==0.18.19
