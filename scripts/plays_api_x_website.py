@@ -5,13 +5,13 @@ import argparse
 import logging
 import pandas as pd
 
-from lib.videos import fetch_multiple_videos
+from lib.yt_data import fetch_multiple_videos
 from lib.scraper import scrape_multiple_videos
-from utils.env import IO_TIMEOUT
+from utils.env import IO_TIMEOUT, LOG_LEVEL
 
 
-logging.basicConfig(
-    level=os.environ.get('LOGLEVEL', logging.INFO))
+logging.basicConfig(level=LOG_LEVEL)
+
 
 
 if __name__ == '__main__':
@@ -26,7 +26,7 @@ if __name__ == '__main__':
         csv_input_path
         
     ** Example usage **
-        plays_api_x_website.py data/video-ids-three.csv
+        plays_api_x_website.py data/video-ids-demo.csv
     """
 
     description = """

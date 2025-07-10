@@ -8,6 +8,7 @@ Based on YouTube Data API (v3)
 import functools
 import os
 import logging
+import argparse
 from collections import defaultdict
 
 import aiometer
@@ -18,10 +19,11 @@ from googleapiclient.discovery import build
 
 
 from models import DataPipeline, Video, fields, asdict
-from utils.helpers import map_language, parse_locale
+from utils.helpers import map_language, parse_locale, safe_dict
+
 from utils.env import \
     IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT, \
-    LOG_LEVEL, YT_API_KEY
+    LOG_LEVEL, YT_API_KEY, IO_TIMEOUT
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -32,7 +34,7 @@ youtube = build('youtube', 'v3', developerKey=YT_API_KEY)
 def parse_video(item):
     """ Parse dict data into Video object """
 
-    langage_code, country_code = parse_locale(glom(item, 'snippet.defaultAudioLanguage'))
+    langage_code, country_code = parse_locale(glom(item, 'snippet.defaultAudioLanguage', default=''))
 
     video = Video(
         video_id=item['id'],
@@ -42,23 +44,25 @@ def parse_video(item):
         channel_id=glom(item, 'snippet.channelId', default=''),
         channel_name=glom(item, 'snippet.channelTitle', default=''),
         thumbnail_url=glom(item, 'snippet.thumbnails.default.url', default=''),
-        duration=item['contentDetails']['duration'],
-        view_count=item['statistics']['viewCount'],
-        comments=item['statistics']['commentCount'],
-        likes=item['statistics']['likeCount'],
+        duration=glom(item, 'contentDetails.duration', default=''),
+        view_count=glom(item, 'statistics.viewCount', default='0'),
+        comments=glom(item, 'statistics.commentCount', default='0'),
+        likes= glom(item, 'statistics.likeCount', default='0'),
 
-        language_code=langage_code,
-        language_name=map_language(langage_code),
+        language_code=langage_code or 'Unkown',
+        language_name=map_language(langage_code) or 'Unknown',
         country = country_code
     )
 
-    logging.debug(f"Parsed video : {item['id']}", video)
+    logging.debug(f"👍 Parsed video : {item['id']} - {video}")
     return video
 
 
 async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kwargs):
     """
-    Return data (metadata and statistics) for a single video.
+    Fetch multiple YouTube videos by their IDs using the YouTube Data API v3.
+    Returns data (metadata and statistics) for a single video
+        videos to `results['videos']`, errors to `results['errors']`
 
     Note: Retrieval may fail for some videos so output may have length < len(video_ids)
     Cost of retrieving YT videos is 1 unit per 50 videos capped at 10k units/day.
@@ -80,7 +84,8 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
 
         except Exception as e:
             # TODO: only AsyncException are currently properly formatted for savin to csv
-            await pipeline.enqueue(e.__dict__, is_error=True), -1
+            logging.debug(f"👎 Error parsing to pipeline, item {item['id']}: {e}")
+            return await pipeline.enqueue(safe_dict(e.__dict__), is_error=True), -1
 
 
     async def run_tasks(video_ids: list[str]):
@@ -133,30 +138,46 @@ async def fetch_multiple_videos(video_ids, progress_callback=None, **pipeline_kw
 if __name__ == '__main__':
     """
     Example usage.
+
+        PYTHONPATH=${PYTHONPATH}:. python lib/yt_data.py data/video-ids-demo.csv \
+                --csv_output_path data/scraped_output.csv \
+                --json_output_path data/scraped_output.json \
+                --ids_column yt_video_id \
+                --data_queue_limit 1000 \
+                --dry_run
     """
     import pandas as pd
 
-    async def print_progress(completed: int, current_video: str):
-        print(f"Progress: {completed} videos completed. Currently processing: {current_video}")
 
+    arg_parser = argparse.ArgumentParser(description="Scrape video metadata from YouTube")
+    arg_parser.add_argument('csv_input_path', type=str, help='Input CSV file path with video IDs')
+    arg_parser.add_argument('--csv_output_path', type=str, help='Optional output CSV file path')
+    arg_parser.add_argument('--ids_column', type=str, default='yt_video_id', help="Column name containing video IDs")
+    arg_parser.add_argument('--data_queue_limit', type=int, default=IO_BATCH_SIZE, help="Data queue limit for pipeline (items flushed to disk)")
+    arg_parser.add_argument('--dry_run', action='store_true', help="Run without saving to disk (dry run)")
+    arg_parser.add_argument('--xlsx', action='store_true', help='Also saves a XLSX file')
+    args = arg_parser.parse_args()
 
     dry_run = False
-    csv_input_path = 'data/video-ids-three.csv'
-    csv_output_path = f"{csv_input_path}-api-out.xlsx"
+    csv_output_path = args.csv_output_path or f"{args.csv_input_path}_yt_data.xlsx"
 
     pipeline_kwargs = {
         "name": "Fetch videos using the YouTube Data API v3",
         "csv_output_path": csv_output_path,
-        "dry_run": False,
+        "data_queue_limit": args.data_queue_limit,
+        "dry_run": args.dry_run,
     }
 
-    # get video_ids from csv file using pandas
-    df = pd.read_csv(csv_input_path)
-    df.set_index('yt_video_id', drop=False, inplace=True)
+
+    df = pd.read_csv(args.csv_input_path)
+    df.set_index(args.ids_column, drop=False, inplace=True)
     df = df.reindex(columns=df.columns.tolist() + fields(Video))
     df = df.astype(str)
     # df.dropna(inplace=True)
-    video_ids = df['yt_video_id']
+    video_ids = df[args.ids_column]
+
+    async def print_progress(completed: int, current_video: str):
+        print(f"Progress: {completed} videos completed. Currently processing: {current_video}")
 
     # fetch videos using the yt api
     results = asyncio.run(fetch_multiple_videos(
@@ -164,11 +185,13 @@ if __name__ == '__main__':
 
     # save fetched video items (dict) to memory dataframe
     for item in results['videos']:
-        video_id = item["video_id"]
+        video_id = item['video_id']
         df.loc[video_id] = {
             **df.loc[video_id].to_dict(), **item}
 
-    # optionally save to csv file
-    if not dry_run:
-        logging.info(f'saving result to: {csv_output_path}')
-        df.to_excel(csv_output_path, engine='xlsxwriter', index=False)
+    # optionally save to xlsx file
+    if not dry_run and args.xlsx:
+        base, _ = os.path.splitext(csv_output_path)
+        xlsx_output_path = base + '.xlsx'
+        logging.info(f'👍 saving xlsx file to: {xlsx_output_path}')
+        df.to_excel(xlsx_output_path, engine='xlsxwriter', index=False)

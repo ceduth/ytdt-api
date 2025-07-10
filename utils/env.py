@@ -23,7 +23,7 @@ YT_API_KEY = os.environ["YT_API_KEY"]
 # Set to True to enable debug mode
 LOG_LEVEL = int(os.getenv("LOG_LEVEL", logging.INFO))
 
-# Timeout to scrape/fetch, default 30000
+# Timeout to scrape/fetch, default 90000 (90s)
 IO_TIMEOUT = int(os.getenv("IO_TIMEOUT", 90000))
 
 # asyncio semaphore limit

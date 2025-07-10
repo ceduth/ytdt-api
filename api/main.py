@@ -8,7 +8,7 @@ from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 
 from utils.env import IO_TIMEOUT, CORS_ALLOW_ORIGINS, CORS_ALLOW_CREDENTIALS
-from lib.videos import fetch_multiple_videos
+from lib.yt_data import fetch_multiple_videos
 from lib.scraper import scrape_multiple_videos
 from pydantic import BaseModel
 from typing import List, Dict, Optional

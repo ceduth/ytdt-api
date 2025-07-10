@@ -6,7 +6,7 @@ from bidict import bidict
 
 __all__ = (
   'file_exists', 'remove_file', 'map_language', 'parse_locale', 'bidirectional_lookup',
-  'load_video_ids_from_csv', 'split_kwargs'
+  'load_video_ids_from_csv', 'split_kwargs', 'safe_dict'
 )
 
 
@@ -16,7 +16,7 @@ file_exists = lambda path: (os.path.isfile(path) and os.path.getsize(path) > 0)
 remove_file = lambda path, missing_ok=True: pathlib.Path(path).unlink(missing_ok)
 
 # Extract language and country codes from locale code eg. 'en-US', 'en_US'
-parse_locale = lambda code: (*((code or '').replace('_', '-').split('-') + [None]),)[:2]
+parse_locale = lambda code: (*((code or '').replace('_', '-').split('-') + ['']),)[:2]
 
 
 def bidirectional_lookup(mapping: dict, key_or_value: str, raise_exc=True):
@@ -28,7 +28,7 @@ def bidirectional_lookup(mapping: dict, key_or_value: str, raise_exc=True):
     return bimap.inv[key_or_value]
   else:
     if not raise_exc:
-      return "Unknown"
+      return None
     raise KeyError(f"{key_or_value} not found in either direction")
   
 
@@ -40,7 +40,7 @@ map_language = lambda lang: bidirectional_lookup({
   "German": "de",
   "Chinese": "zh",
   "Japanese": "ja"
-}, lang)
+}, lang, raise_exc=False)
 
 
 
@@ -55,3 +55,16 @@ def split_kwargs(keys_to_extract, kwargs):
     extracted = {k: kwargs[k] for k in keys_to_extract if k in kwargs}
     rest = {k: v for k, v in kwargs.items() if k not in keys_to_extract}
     return extracted, rest
+
+
+def safe_dict(obj):
+    """ Stringify nested objects safely for serialization. """
+    if isinstance(obj, dict):
+        return {k: safe_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [safe_dict(v) for v in obj]
+    else:
+        try:
+            return str(obj)
+        except Exception:
+            return repr(obj)
