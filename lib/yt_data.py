@@ -144,7 +144,8 @@ if __name__ == '__main__':
                 --json_output_path data/scraped_output.json \
                 --ids_column yt_video_id \
                 --data_queue_limit 1000 \
-                --dry_run
+                --dry_run \
+                --xlsx
     """
     import pandas as pd
 
@@ -179,7 +180,7 @@ if __name__ == '__main__':
     async def print_progress(completed: int, current_video: str):
         print(f"Progress: {completed} videos completed. Currently processing: {current_video}")
 
-    # fetch videos using the yt api
+    # fetch videos using the yt data api
     results = asyncio.run(fetch_multiple_videos(
         video_ids, progress_callback=print_progress, **pipeline_kwargs))
 
