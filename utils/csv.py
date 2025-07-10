@@ -7,6 +7,7 @@ from typing import List, Dict, Any
 from dataclasses import dataclass
 
 from utils.helpers import file_exists
+from utils.env import LOG_LEVEL
 
 
 __all__ = (
@@ -15,8 +16,8 @@ __all__ = (
 )
 
 
-logging.basicConfig(
-    level=os.environ.get('LOGLEVEL', logging.INFO))
+logging.basicConfig(level=LOG_LEVEL)
+
 
 
 @dataclass
@@ -146,23 +147,29 @@ class ResumableDictWriter:
 
 def save_to_csv(rows_to_write, csv_output_path, header=None) -> WriteStats:
     """
-    :param data_queue (List[dict]): items to write
+    :param rows_to_write (List[dict]): items to write
     :param csv_output_path (str): output csv path
     """
 
     if not header:
         header = set([e for d in rows_to_write for e in set(d)])
 
+    stats = None
+
     try:
         with ResumableDictWriter(csv_output_path, fieldnames=header) as writer:
-
             stats = writer.write_rows(rows_to_write)
             logging.debug(f"Successfully wrote {stats.items_written} items ({stats.bytes_written} bytes)")
             logging.debug(f"Started from position {stats.start_position}")
-            return stats
 
+    # Return an empty WriteStats object
     except Exception as e:
-        logging.error(f"Writing failed: {e}")
+        logging.error(f"Writing failed, error: {e}")
+        logging.debug("Writing failed, row:", rows_to_write)
+        stats = WriteStats(items_written=0, bytes_written=0, start_position=None)
+
+    return stats
+
 
 
 def load_v():

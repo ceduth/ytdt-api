@@ -26,7 +26,7 @@ from tqdm import tqdm
 from models import DataPipeline, Video, asdict
 from lib.exceptions import AsyncException, VideoError
 from utils.json import DateTimeEncoder
-from utils.env import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, LOG_LEVEL
+from utils.env import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, LOG_LEVEL
 from utils.helpers import map_language, load_video_ids_from_csv, split_kwargs
 
 
@@ -436,7 +436,7 @@ class YouTubeVideoScraper:
                 return await pipeline.enqueue(asdict(video)), 0
 
             except Exception as e:
-                logging.debug(str(e))
+                logging.debug(f"Error scraping to pipeline, video {video_id}: {e}")
                 return await pipeline.enqueue(e.__dict__, is_error=True), -1
 
         async def run_tasks(video_ids: [str]):
@@ -456,6 +456,8 @@ class YouTubeVideoScraper:
 async def scrape_multiple_videos(video_ids, progress_callback=None, **kwargs):
     """
     Scrape videos from YouTube website.
+    Returns results dict, with the scraped videos into `results['videos']`, 
+        errors into `results['errors']`
     """
 
     # Create scraper and scrape videos concurrently
@@ -481,61 +483,61 @@ if __name__ == "__main__":
     Runs with dry_run=False, instructing not to flush pieline to disk.
 
     Example usage (ran from dir ytdt-api/)
-        PYTHONPATH=${PYTHONPATH}:. python lib/scraper.py
+
+        # with options
+        PYTHONPATH=${PYTHONPATH}:. python lib/scraper.py data/video-ids-demo.csv \
+                --csv_output_path data/scraped_output.csv \
+                --ids_column yt_video_id \
+                --timeout 1000
+                --concurrency 10 \
+                --max_per_second 5 
+
+        # or demo data with default options
+        PYTHONPATH=${PYTHONPATH}:. python lib/scraper.py 
 
     """
 
     arg_parser = argparse.ArgumentParser(description="Scrape video metadata from YouTube")
-    arg_parser.add_argument('--csv_input_path', type=str, help='Input CSV file path with video IDs')
+    arg_parser.add_argument('csv_input_path', type=str, help='Input CSV file path with video IDs')
     arg_parser.add_argument('--csv_output_path', type=str, help='Optional output CSV file path')
     arg_parser.add_argument('--ids_column', type=str, default='yt_video_id', help="Column name containing video IDs")
     arg_parser.add_argument('--timeout', type=int, default=IO_TIMEOUT, help="Scrape timeout in ms")
-    arg_parser.add_argument('--json_output_path', type=str, default='data/youtube_video_stats.json',
-                        help='Output JSON file path')
-
+    arg_parser.add_argument('--concurrency', type=int, default=IO_CONCURRENCY_LIMIT, help="Number of concurrent tasks")
+    arg_parser.add_argument('--max_per_second', type=int, default=IO_RATE_LIMIT, help="Max requests per second")
+    arg_parser.add_argument('--data_queue_limit', type=int, default=IO_BATCH_SIZE, help="Data queue limit for pipeline (items flushed to disk)")
+    arg_parser.add_argument('--dry_run', action='store_true', help="Run without saving to disk (dry run)")
+    arg_parser.add_argument('--json', action='store_true', help='Also saves a XLSX file')
     args = arg_parser.parse_args()
 
-    # Demo video IDs
-    video_ids = [
-
-        # Those videos are unavailable:
-        "9eHseYggb-I",  # This video is private
-        "W7Tkx2oXIyk",  # This video is no longer available because the YouTube account associated with this video has been closed.
-
-        # These have "Unlisted" tag under their video name in youtube.com
-        # but they would play well
-        "__5bvLohw5U",  # Unlisted
-        "__c6BSSKIXs",  # Unlisted
-        "uuo2KqoJxsc",  # Unlisted
-
-        # These public videos are okay as of 06/25/2025
-        # But only default IDs provided by YouTube Data API Explorer are working
-        "Ks-_Mh1QhMc",  # Default at https://developers.google.com/youtube/v3/docs/videos/list
-        "0_jC8Lg-oxY",  # لماذا كان على يسوع أن يموت؟
-        "UJfX-ZrDZmU",  # Neden İsa Mesih Bizim İçin Öldü?
-        "LsWOcjQF0Ns",  # Emali - Surrender [Official Audio]
-
-    ]
-
-    if args.csv_input_path:
-        video_ids = load_video_ids_from_csv(args.csv_input_path, args.ids_column)
+    dry_run = True
+    video_ids = load_video_ids_from_csv(args.csv_input_path, args.ids_column)
+    csv_output_path = args.csv_output_path or f"{args.csv_input_path}_scraped.csv"
 
     pipeline_kwargs = {
-        "csv_output_path": args.csv_output_path or "data/scraped_output.csv",
         "name": f"Scrape videos with {args.timeout}ms timeout",
-        "dry_run": True,
-        "timeout": args.timeout,
+        "csv_output_path": csv_output_path,
+        "data_queue_limit": args.data_queue_limit,
+        "dry_run": args.dry_run,
+    }
+
+    scraper_kwargs = {
+        "concurrency": args.concurrency,
+        "max_per_second": args.max_per_second,
+        "timeout": args.timeout
     }
 
     # progress callback
     async def print_progress(completed: int, current_video: str):
         print(f"Progress: {completed} videos scraped. Currently processing: {current_video}")
 
+    # Scrape videos to `results['videos']`, errors to `results['errors']`
     results = asyncio.run(scrape_multiple_videos(
-        video_ids, progress_callback=print_progress, **pipeline_kwargs))
+        video_ids, progress_callback=print_progress, **{**pipeline_kwargs, **scraper_kwargs}))
 
-    # Save to JSON
-    with open(args.json_output_path, 'w', encoding='utf-8-sig') as f:
-        json.dump(results, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
-        # print(json.dumps(results, indent=2, cls=DateTimeEncoder))
-
+    # Optionally save to JSON
+    if args.json and not args.dry_run:
+        base, _ = os.path.splitext(csv_output_path)
+        json_output_path = base + '.json'
+        logging.info(f'saving json file to: {json_output_path}')
+        with open(json_output_path, 'w', encoding='utf-8-sig') as f:
+            json.dump(results, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)

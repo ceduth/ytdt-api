@@ -179,18 +179,40 @@ export \
 First add project dir `ytdt-api/` to PYTHONPATH:
 
 ```shell
-export PYTHONPATH=${PYTHONPATH}:.
+export PYTHONPATH=${PYTHONPATH}:. \
+  LOG_LEVEL=10
 ```
+
+### Script `yt_data.py`
+
+```shell
+python lib/yt_data.py data/video-ids-demo.csv \
+  --csv_output_path data/yt_data_output.csv \
+  --ids_column yt_video_id \
+  --data_queue_limit 50 \
+  --xlsx 
+  ```
 
 ### Script `scraper.py`
 
 Scrapes video ids. Look for output in: `data/youtube_video_stats.json`
-```shell
-# Load video ids from file
-python lib/scraper.py --csv_input_path data/video-ids-three.csv
+Eg. scrape 5 videos at once, with speed = 5 items/sec, erroring unresponsive items after 1s
 
-# Using demo/preset video ids (incl. unavailable videos for completeness sake)
-python lib/scraper.py
+```shell 
+python lib/scraper.py ~/Downloads/bquxjob_702e65cd_197f062db56.csv \
+    --csv_output_path ~/Downloads/scraped.csv \
+    --ids_column video_id \
+    --timeout 1000 \
+    --concurrency 10 \
+    --max_per_second 5 \
+    --data_queue_limit 50
+    --json
+```
+
+Using demo video ids file (incl. unavailable videos for completeness sake)
+```shell
+python lib/scraper.py data/video-ids-demo.csv \
+  --json
 ```
 
 Results for the demo/preset below. 
@@ -342,7 +364,7 @@ Example:
 chmod +x plays_api_x_website.py
 
 PYTHONPATH=$PYTHONPATH:.  \
-./scripts/plays_api_x_website.py data/video-ids-three.csv \
+./scripts/plays_api_x_website.py data/video-ids-demo.csv \
   --include_fields=published_at,upload_date,duration,view_count,scraped_published_at,scraped_upload_date,scraped_upload_date,scraped_duration,scraped_view_count
 ```
 

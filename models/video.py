@@ -4,14 +4,16 @@ import logging
 from dataclasses import dataclass, \
     field as _field, fields as _fields, asdict as _asdict
 
+from utils.env import LOG_LEVEL
+
 
 __all__ = (
     'asdict', 'fields', 'Video',
 )
 
 
-logging.basicConfig(
-    level=os.environ.get('LOGLEVEL', logging.INFO))
+logging.basicConfig(level=LOG_LEVEL)
+
 
 
 def asdict(video, name_prefix=None):
@@ -43,7 +45,6 @@ class Video:
     language_code: str
     # duration: str
     view_count: str
-    is_unlisted: bool
 
     # Optional metadata
     url: str = ''
@@ -52,6 +53,7 @@ class Video:
     channel_name: str = ''
     language_name: str = ''
     country: str = ''
+    is_unlisted: bool = False
 
     # Engagement
     likes: str = ''

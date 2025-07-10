@@ -99,14 +99,36 @@ if __name__ == "__main__":
 
     property_id = "320198532"
     key_path = "./cru-ga4-prod-1-63a3434e5a2a.json" 
-    output_csv = "data/ga4_report.csv"
+    output_csv = "data/ga4_simple_report.csv"
 
-    start_date, end_date = "2023-03-01", "2023-07-16"
+    start_date, end_date = "2023-03-01", "2023-03-01"
     client = GA4Client(property_id, key_path)
 
     # report = client.get_report(start_date, end_date)
     # client.list_available_metrics()
-    all_dims, all_mets = client.get_all_fields()
+    # all_dims, all_mets = client.get_all_fields()
+
+    # all_dims = ['date', 'browser', 'campaignId']
+    # all_mets = ['sessions']
+
+    # all_dims = ['dateHourMinute', 'customEvent:jfid', 'customEvent:ssoguid', 'customEvent:global_id', 
+    #             'customEvent:mediacomponentid', 'signedInWithUserId', 'audienceId']
+    # all_mets = ['sessions']
+
+    # all_dims = ['browser', 'deviceCategory', 'operatingSystem', 'screenResolution', 'city', ]
+    all_dims = [
+        'mobileDeviceMarketingName',  
+        'mobileDeviceModel',         
+        'mobileDeviceBranding',   
+        'deviceModel',              
+        'operatingSystemWithVersion', 
+        'operatingSystemVersion',    
+        'screenResolution',        
+        'platformDeviceCategory',   
+        'appVersion'                
+        ]
+    all_mets = ['sessions']
+
 
     # GA4 limits: max 9 dimensions, 10 metrics per report
     selected_dims = all_dims[:9]
@@ -115,8 +137,8 @@ if __name__ == "__main__":
     report = client.get_report(
         dimensions=selected_dims,
         metrics=selected_mets,
-        start_date="2023-03-01",
-        end_date="2023-07-16"
+        start_date=start_date,
+        end_date=end_date
     )
     
     # client.print_report(report)
