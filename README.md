@@ -176,18 +176,21 @@ export \
 
 ## Scripts
 
+Every script features a `-h (--help)` option.
 First add project dir `ytdt-api/` to PYTHONPATH:
 
 ```shell
-export PYTHONPATH=${PYTHONPATH}:. \
+export \
+  PYTHONPATH=${PYTHONPATH}:. \
   LOG_LEVEL=10
 ```
 
 ### Script `yt_data.py`
 
+Extract videos using the YouTube Data API (v3).
+
 ```shell
 python lib/yt_data.py data/video-ids-demo.csv \
-  --csv_output_path data/yt_data_output.csv \
   --ids_column yt_video_id \
   --data_queue_limit 50 \
   --xlsx 
@@ -199,13 +202,12 @@ Scrapes video ids. Look for output in: `data/youtube_video_stats.json`
 Eg. scrape 5 videos at once, with speed = 5 items/sec, erroring unresponsive items after 1s
 
 ```shell 
-python lib/scraper.py ~/Downloads/bquxjob_702e65cd_197f062db56.csv \
-    --csv_output_path ~/Downloads/scraped.csv \
-    --ids_column video_id \
+python lib/scraper.py data/video-ids-demo.csv \
+    --ids_column yt_video_id \
     --timeout 1000 \
     --concurrency 10 \
     --max_per_second 5 \
-    --data_queue_limit 50
+    --data_queue_limit 50 \
     --json
 ```
 
@@ -214,8 +216,7 @@ Using demo video ids file (incl. unavailable videos for completeness sake)
 python lib/scraper.py data/video-ids-demo.csv \
   --json
 ```
-
-Results for the demo/preset below. 
+Eg. results for above demo: 
 ```json
 {
   "errors": [
@@ -340,6 +341,22 @@ Results for the demo/preset below.
     }
   ]
 }
+```
+
+
+### Script `yt_analytics`
+
+Extract videos using the YouTube Analytics API (v2).
+Eg. the [JesusFilm](https://www.youtube.com/@jesusfilm) channel queried (requires authentication):
+
+```shell
+python lib/yt_analytics.py data/video-ids-demo.csv \
+    --service_account ./cru-ga4-prod-1-63a3434e5a2a.json \
+    --channel_id UCCtcQHR6-mQHQh6G06IPlDA \
+    --ids_column yt_video_id \
+    --start_date 2025-01-01 \
+    --end_date 2025-07-10 \
+    --data_queue_limit 50 
 ```
 
 ### Script `plays_api_x_website.py`
