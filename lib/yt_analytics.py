@@ -26,7 +26,7 @@ import pickle
 from dataclasses import fields as _fields
 
 from models import DataPipeline, Video, fields, asdict
-from utils.helpers import safe_dict
+from utils.helpers import safe_dict, rename_file_with_extension
 
 from utils.env import \
     IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT, \
@@ -300,7 +300,8 @@ if __name__ == '__main__':
     arg_parser.add_argument('--xlsx', action='store_true', help='Also saves a XLSX file')
     args = arg_parser.parse_args()
     
-    csv_output_path = args.csv_output_path or f"{args.csv_input_path}_yt_analytics.csv"
+    csv_output_path = args.csv_output_path or \
+        rename_file_with_extension(args.csv_input_path, suffix='yt_analytics')
     
     pipeline_kwargs = {
         "name": "Fetch analytics using the YouTube Analytics API v2",
@@ -345,7 +346,6 @@ if __name__ == '__main__':
     
     # Optionally save to xlsx file
     if not args.dry_run and args.xlsx:
-        base, _ = os.path.splitext(csv_output_path)
-        xlsx_output_path = base + '.xlsx'
+        xlsx_output_path = rename_file_with_extension(csv_output_path, 'xlsx')
         logging.info(f'👍 saving xlsx file to: {xlsx_output_path}')
         df.to_excel(xlsx_output_path, engine='xlsxwriter', index=False)

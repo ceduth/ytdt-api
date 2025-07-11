@@ -27,7 +27,7 @@ from models import DataPipeline, Video, asdict
 from lib.exceptions import AsyncException, VideoError
 from utils.json import DateTimeEncoder
 from utils.env import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, LOG_LEVEL
-from utils.helpers import map_language, load_video_ids_from_csv, split_kwargs
+from utils.helpers import map_language, load_video_ids_from_csv, split_kwargs, rename_file_with_extension
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -511,7 +511,8 @@ if __name__ == "__main__":
 
     dry_run = True
     video_ids = load_video_ids_from_csv(args.csv_input_path, args.ids_column)
-    csv_output_path = args.csv_output_path or f"{args.csv_input_path}_scraped.csv"
+    csv_output_path = args.csv_output_path or \
+        rename_file_with_extension(args.csv_input_path, suffix='scraped')
 
     pipeline_kwargs = {
         "name": f"Scrape videos with {args.timeout}ms timeout",
@@ -536,8 +537,7 @@ if __name__ == "__main__":
 
     # Optionally save to JSON
     if args.json and not args.dry_run:
-        base, _ = os.path.splitext(csv_output_path)
-        json_output_path = base + '.json'
+        json_output_path = rename_file_with_extension(csv_output_path, 'json')
         logging.info(f'saving json file to: {json_output_path}')
         with open(json_output_path, 'w', encoding='utf-8-sig') as f:
             json.dump(results, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)

@@ -6,6 +6,7 @@ from utils.helpers import remove_file
 from lib.exceptions import AsyncException
 from utils.csv import save_to_csv, WriteStats
 from utils.env import IO_BATCH_SIZE
+from utils.helpers import rename_file_with_extension
 
 
 __all__ = (
@@ -40,7 +41,7 @@ class DataPipeline:
 
         if csv_output_path:
             self.csv_output_path = csv_output_path
-            self.err_output_path = "{}-errors.csv".format(csv_output_path)
+            self.err_output_path = rename_file_with_extension(csv_output_path, suffix='error')
 
     async def __aenter__(self):
 
