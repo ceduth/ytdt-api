@@ -19,7 +19,8 @@ from googleapiclient.discovery import build
 
 
 from models import DataPipeline, Video, fields, asdict
-from utils.helpers import map_language, parse_locale, safe_dict
+from utils.helpers import map_language, parse_locale, \
+    safe_dict, rename_file_with_extension
 
 from utils.env import \
     IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, IO_RATE_LIMIT, \
@@ -160,7 +161,8 @@ if __name__ == '__main__':
     args = arg_parser.parse_args()
 
     dry_run = False
-    csv_output_path = args.csv_output_path or f"{args.csv_input_path}_yt_data.xlsx"
+    csv_output_path = args.csv_output_path or \
+        rename_file_with_extension(args.csv_input_path, suffix='yt_data')
 
     pipeline_kwargs = {
         "name": "Fetch videos using the YouTube Data API v3",
@@ -192,7 +194,6 @@ if __name__ == '__main__':
 
     # optionally save to xlsx file
     if not dry_run and args.xlsx:
-        base, _ = os.path.splitext(csv_output_path)
-        xlsx_output_path = base + '.xlsx'
+        xlsx_output_path = rename_file_with_extension(csv_output_path, 'xlsx')
         logging.info(f'👍 saving xlsx file to: {xlsx_output_path}')
         df.to_excel(xlsx_output_path, engine='xlsxwriter', index=False)

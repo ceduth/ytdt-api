@@ -80,6 +80,7 @@ class GA4Client:
                 print({dimension.name: value.value for dimension, value in zip(response.dimension_headers, row.dimension_values)},
                     {metric.name: value.value for metric, value in zip(response.metric_headers, row.metric_values)})
 
+    # TODO: use save_to_csv from utils/csv.py
     def save_to_csv(self, response, output_path: str):
         headers = [d.name for d in response.dimension_headers] + [m.name for m in response.metric_headers]
         

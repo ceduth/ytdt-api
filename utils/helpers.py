@@ -6,7 +6,7 @@ from bidict import bidict
 
 __all__ = (
   'file_exists', 'remove_file', 'map_language', 'parse_locale', 'bidirectional_lookup',
-  'load_video_ids_from_csv', 'split_kwargs', 'safe_dict'
+  'load_video_ids_from_csv', 'split_kwargs', 'safe_dict', 'rename_file_with_extension'
 )
 
 
@@ -68,3 +68,23 @@ def safe_dict(obj):
             return str(obj)
         except Exception:
             return repr(obj)
+
+
+def rename_file_with_extension(file_path, new_extension=None, suffix=None):
+    """ Updates the file extension of a given file path; 
+    Optionally adds a suffix before the new extension.
+    eg. 'path/to/file.csv' to 'path/to/file_v2.xls'.
+    """
+    dir_path, filename = os.path.split(file_path)
+    base_name, original_ext = os.path.splitext(filename)
+
+    if suffix:
+        base_name += f"_{suffix}"
+
+    # Use original extension if new one is not provided
+    extension = new_extension or original_ext
+    if not extension.startswith('.'):
+        extension = '.' + extension
+
+    new_filename = base_name + extension
+    return os.path.join(dir_path, new_filename)

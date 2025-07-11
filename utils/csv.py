@@ -147,6 +147,7 @@ class ResumableDictWriter:
 
 def save_to_csv(rows_to_write, csv_output_path, header=None) -> WriteStats:
     """
+    Save a list of dictionaries to a CSV file, with optional header and crash recovery.
     :param rows_to_write (List[dict]): items to write
     :param csv_output_path (str): output csv path
     """
@@ -170,26 +171,3 @@ def save_to_csv(rows_to_write, csv_output_path, header=None) -> WriteStats:
 
     return stats
 
-
-
-def load_v():
-
-        # setup dataframe
-    df = pd.read_csv(args.csv_input_path)
-    df.set_index(args.ids_column, drop=False, inplace=True)
-
-    # select fields from resp. input csv, YT api and scraped videos
-    # df = df.reindex(columns=[
-    #   *df.columns.tolist(),
-    #   *[f.name for f in fields(Video)
-    #     if include_fields and f.name in include_fields],
-    #   *[f"scraped_{f.name}" for f in fields(Video)
-    #     if include_fields and f.name in include_fields]
-    # ])
-
-    # drop nan row, assume string cells
-    df.dropna(how='all', inplace=True)
-    df = df.astype(str)
-
-    # fetch videos asynchronously using the YouTube Data API v3
-    video_ids = df[args.ids_column]
