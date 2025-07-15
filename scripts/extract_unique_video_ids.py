@@ -11,6 +11,7 @@ import argparse
 import sys
 
 def main():
+    
     # Set up argument parser
     parser = argparse.ArgumentParser(description="Extract video_id values from <file1.csv> that are not in <file2.csv>")
     parser.add_argument('scraped_errors_file', help="Path to scraped-errors.csv file")

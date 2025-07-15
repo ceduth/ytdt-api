@@ -10,13 +10,14 @@ all data types are compatible with BigQuery's requirements.
 2. Upload the cleaned CSV to Google Cloud Storage
 
 ```bash
-gsutil cp data/ga4_comprehensive_chunked_final_cleaned.csv gs://jfp-temp/ga4_comprehensive_chunked_final_cleaned.csv
+gsutil cp data/ga4_comprehensive_chunked_final_cleaned.csv \
+    gs://jfp-temp/ga4_comprehensive_chunked_final_cleaned.csv
 ```
 
 3. Load the results into BigQuery
 
 ```bigquery
-LOAD DATA INTO `jfp-data-warehouse.data_sources.ga4_320198532`
+LOAD DATA OVERWRITE `jfp-data-warehouse.data_sources.ga4_320198532`
 FROM FILES (
   format = 'CSV',
   uris = ['gs://jfp-temp/ga4_comprehensive_chunked_final_cleaned.csv'],
@@ -25,9 +26,10 @@ FROM FILES (
 ```
 
 """
+import argparse
 import pandas as pd
 import numpy as np
-
+from utils.helpers import rename_file_with_extension
 
 
 def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
@@ -45,6 +47,12 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
     df = pd.read_csv(csv_file_path)
     print(f"   📊 Original shape: {df.shape}")
     
+    # Define columns that should be treated as strings (not numeric)
+    string_columns = [
+        'dateHourMinute', 'customEvent:mediacomponentid', 'languageCode', 'customEvent:langid',
+        'countryId', 'sessionSource', 'sessionMedium', 'pageLocation', 'eventName'
+    ]
+    
     # Define columns that should be numeric but might have formatting issues
     numeric_columns = [
         'eventValue', 'activeUsers', 'sessions', 'engagedSessions',
@@ -53,8 +61,8 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
         'newUsers', 'totalUsers'
     ]
     
-    # Add custom event metrics
-    custom_metrics = [col for col in df.columns if col.startswith('customEvent:')]
+    # Add custom event metrics, but exclude string columns
+    custom_metrics = [col for col in df.columns if col.startswith('customEvent:') and col not in string_columns]
     numeric_columns.extend(custom_metrics)
     
     print(f"🔧 Cleaning numeric columns...")
@@ -70,7 +78,7 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
             df[col] = df[col].replace(['NaN', 'nan', 'null', 'NULL', ''], '0')
             
             # Check if column has decimal values
-            has_decimals = df[col].str.contains('\.', na=False).any()
+            has_decimals = df[col].str.contains('.', na=False).any()
             
             if has_decimals:
                 print(f"      ⚠️  {col} contains decimal values - converting to float")
@@ -89,11 +97,6 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).astype('int64')
     
     # Clean string columns
-    string_columns = [
-        'dateHourMinute', 'customEvent:mediacomponentid', 'languageCode',
-        'countryId', 'sessionSource', 'sessionMedium', 'pageLocation', 'eventName'
-    ]
-    
     print(f"🔧 Cleaning string columns...")
     for col in string_columns:
         if col in df.columns:
@@ -126,12 +129,21 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
     
     return df
 
-# Usage example:
+
 if __name__ == "__main__":
-    # Clean your GA4 data
+    """
+    python scripts/clean_ga4_data_for_bigquery.py data/ga4_comprehensive_chunked_final.csv 
+    """
+
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description="Clean GA4 data for BigQuery import")
+    parser.add_argument('csv_input_path', help="Input csv file")
+    args = parser.parse_args()
+
+    # Clean GA4 data    
     cleaned_df = clean_ga4_data_for_bigquery(
-        csv_file_path="data/ga4_comprehensive_chunked_final.csv",
-        output_path="data/ga4_comprehensive_chunked_final_cleaned.csv"
+        csv_file_path=args.csv_input_path,
+        output_path=rename_file_with_extension(args.csv_input_path, suffix='cleaned')
     )
     
     print("\n🔍 Data types after cleaning:")

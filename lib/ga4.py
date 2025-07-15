@@ -263,6 +263,7 @@ class GA4Client:
             "pageTitle",
             "eventName",
             "customEvent:mediacomponentid",
+            "customEvent:langid",
             "languageCode",
             "userGender",
             "userAgeBracket"
@@ -846,7 +847,7 @@ if __name__ == "__main__":
     start_date = "2023-03-01"
     end_date = "2023-07-16"  
     chunk_days = 10               # Chunk size in days (adjust based on data volume)
-    limit_rows = 50000            # Reduced from max. 100K for better reliability
+    limit_rows = 100000            # Reduced from max. 100K for better reliability
     
     # Specific events we're interested in
     # event_names = ['videostarts', 'session_start', 'first_visit']

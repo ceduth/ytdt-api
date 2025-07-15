@@ -185,16 +185,6 @@ export \
   LOG_LEVEL=10
 ```
 
-### Script `yt_data.py`
-
-Extract videos using the YouTube Data API (v3).
-
-```shell
-python lib/yt_data.py data/video-ids-demo.csv \
-  --ids_column yt_video_id \
-  --data_queue_limit 50 \
-  --xlsx 
-  ```
 
 ### Script `scraper.py`
 
@@ -343,6 +333,16 @@ Eg. results for above demo:
 }
 ```
 
+### Script `yt_data.py`
+
+Extract videos using the YouTube Data API (v3).
+
+```shell
+python lib/yt_data.py data/video-ids-demo.csv \
+  --ids_column yt_video_id \
+  --data_queue_limit 50 \
+  --xlsx 
+  ```
 
 ### Script `yt_analytics`
 
@@ -357,6 +357,23 @@ python lib/yt_analytics.py data/video-ids-demo.csv \
     --start_date 2025-01-01 \
     --end_date 2025-07-10 \
     --data_queue_limit 50 
+```
+
+### Script `ga4.py`
+
+Unnest Google Analytics 4 aggregated data according to 8 preset dimensions:
+`dateHourMinute`, `customEvent:mediacomponentid`, `customEvent:langid`, `countryId`, `sessionSource`, `sessionMedium`, `pageLocation`, `eventName`.
+
+```shell
+python lib/ga4.py
+```
+
+### Script `clean_ga4_data_for_bigquery.py`
+
+Cleans GA4 CSV data to ensure it can be imported into BigQuery without issues.
+
+```shell
+python scripts/clean_ga4_data_for_bigquery.py data/ga4_comprehensive_chunked_final.csv 
 ```
 
 ### Script `plays_api_x_website.py`
