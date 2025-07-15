@@ -5,12 +5,13 @@ pip install playwright
 playwright install  # To download browser binaries
 """
 
-import functools
 import os
 import re
-import asyncio
 import json
+import asyncio
 import logging
+import argparse
+import functools
 
 import urllib.parse
 from collections import defaultdict
@@ -24,8 +25,9 @@ from tqdm import tqdm
 
 from models import DataPipeline, Video, asdict
 from lib.exceptions import AsyncException, VideoError
-from helpers import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, LOG_LEVEL, \
-    map_language
+from utils.json import DateTimeEncoder
+from utils.env import IO_RATE_LIMIT, IO_TIMEOUT, IO_CONCURRENCY_LIMIT, IO_BATCH_SIZE, LOG_LEVEL
+from utils.helpers import map_language, load_video_ids_from_csv, split_kwargs, rename_file_with_extension
 
 
 logging.basicConfig(level=LOG_LEVEL)
@@ -33,13 +35,13 @@ logging.basicConfig(level=LOG_LEVEL)
 
 class YouTubeVideoScraper:
 
-    def __init__(self, concurrency=None, max_per_second=None):
+    def __init__(self, concurrency=None, max_per_second=None, timeout=None):
         self.browser = None
         self.page = None
         self.concurrency = int(concurrency or IO_CONCURRENCY_LIMIT)
         self.max_per_second = int(max_per_second or IO_RATE_LIMIT)
-    
-    
+        self.timeout = int(timeout or IO_TIMEOUT)
+
     async def __aenter__(self):
         self.playwright = await async_playwright().start()
         self.browser = await self.playwright.chromium.launch(
@@ -87,6 +89,114 @@ class YouTubeVideoScraper:
             url = urljoin('https://www.youtube.com', url)
         return url
 
+    async def _extract_channel_id(self, page):
+        """
+        Extract the real YouTube channel ID (e.g., UCE2kA-abkzL1tdhmIpQYoEQ).
+        
+        :param Page page: Playwright page object
+        :returns str: Channel ID or 'Unknown'
+        """
+        try:
+            # Method 1: Extract from canonical link tag
+            canonical_element = await page.query_selector('link[rel="canonical"]')
+            if canonical_element:
+                canonical_url = await canonical_element.get_attribute('href')
+                if canonical_url and '/channel/' in canonical_url:
+                    channel_id_match = re.search(r'/channel/([A-Za-z0-9_-]+)', canonical_url)
+                    if channel_id_match:
+                        logging.debug(f'Channel ID found in canonical URL: {channel_id_match.group(1)}')
+                        return channel_id_match.group(1)
+
+            # Method 2: Extract from ytInitialData JSON
+            try:
+                yt_initial_data = await page.evaluate('''
+                    () => {
+                        if (window.ytInitialData) {
+                            return JSON.stringify(window.ytInitialData);
+                        }
+                        return null;
+                    }
+                ''')
+                
+                if yt_initial_data:
+                    data = json.loads(yt_initial_data)
+                    # Navigate through the complex YouTube data structure
+                    video_details = data.get('contents', {}).get('twoColumnWatchNextResults', {}).get('results', {}).get('results', {}).get('contents', [])
+                    
+                    for content in video_details:
+                        if 'videoPrimaryInfoRenderer' in content:
+                            continue
+                        elif 'videoSecondaryInfoRenderer' in content:
+                            owner_info = content.get('videoSecondaryInfoRenderer', {}).get('owner', {}).get('videoOwnerRenderer', {})
+                            browse_endpoint = owner_info.get('browseEndpoint', {})
+                            if browse_endpoint and 'browseId' in browse_endpoint:
+                                channel_id = browse_endpoint['browseId']
+                                logging.debug(f'Channel ID found in ytInitialData: {channel_id}')
+                                return channel_id
+                            
+                            # Alternative path in the data structure
+                            navigation_endpoint = owner_info.get('navigationEndpoint', {}).get('commandMetadata', {}).get('webCommandMetadata', {})
+                            if navigation_endpoint and 'url' in navigation_endpoint:
+                                url = navigation_endpoint['url']
+                                if '/channel/' in url:
+                                    channel_id_match = re.search(r'/channel/([A-Za-z0-9_-]+)', url)
+                                    if channel_id_match:
+                                        logging.debug(f'Channel ID found in navigation endpoint: {channel_id_match.group(1)}')
+                                        return channel_id_match.group(1)
+            except Exception as e:
+                logging.debug(f'Error parsing ytInitialData: {e}')
+
+            # Method 3: Extract from meta tags
+            meta_selectors = [
+                'meta[property="og:url"]',
+                'meta[name="twitter:url"]',
+                'meta[itemprop="channelId"]'
+            ]
+            
+            for selector in meta_selectors:
+                meta_element = await page.query_selector(selector)
+                if meta_element:
+                    content = await meta_element.get_attribute('content')
+                    if content and '/channel/' in content:
+                        channel_id_match = re.search(r'/channel/([A-Za-z0-9_-]+)', content)
+                        if channel_id_match:
+                            logging.debug(f'Channel ID found in meta tag: {channel_id_match.group(1)}')
+                            return channel_id_match.group(1)
+
+            # Method 4: Extract from channel link and follow redirect
+            channel_link = await page.query_selector('yt-formatted-string.ytd-channel-name a')
+            if channel_link:
+                channel_url = await channel_link.get_attribute('href')
+                if channel_url:
+                    channel_url = self._make_absolute_url(channel_url)
+                    
+                    # If it's a handle URL, we need to resolve it
+                    if '/@' in channel_url:
+                        try:
+                            # Create a new page to navigate to channel
+                            channel_page = await self.browser.new_page()
+                            await channel_page.goto(channel_url, wait_until='domcontentloaded', timeout=10000)
+                            
+                            # Look for channel ID in the channel page
+                            channel_canonical = await channel_page.query_selector('link[rel="canonical"]')
+                            if channel_canonical:
+                                canonical_href = await channel_canonical.get_attribute('href')
+                                if canonical_href and '/channel/' in canonical_href:
+                                    channel_id_match = re.search(r'/channel/([A-Za-z0-9_-]+)', canonical_href)
+                                    if channel_id_match:
+                                        logging.debug(f'Channel ID found via channel page redirect: {channel_id_match.group(1)}')
+                                        await channel_page.close()
+                                        return channel_id_match.group(1)
+                            
+                            await channel_page.close()
+                        except Exception as e:
+                            logging.debug(f'Error following channel redirect: {e}')
+
+        except Exception as e:
+            logging.debug(f'Error extracting channel ID: {e}')
+
+        return 'Unknown'
+
     async def _extract_channel_details(self, page):
         """
         Extract advanced channel details.
@@ -96,6 +206,8 @@ class YouTubeVideoScraper:
         """
         channel_details = {
             "channel_id": "Unknown",
+            "channel_title": "Unknown",
+            "channel_handle": "Unknown",
             "subscribers_gained": 0,
             "subscribers_lost": 0,
             "country": "Unknown",
@@ -104,23 +216,27 @@ class YouTubeVideoScraper:
         }
 
         try:
-            # Try to extract channel URL and ID
-            # $$('yt-formatted-string.ytd-channel-name a')[0].href in chrome devtools
+            # Extract channel ID using the new method
+            channel_details["channel_id"] = await self._extract_channel_id(page)
+
+            # Try to extract channel URL and handle
             channel_link = await page.query_selector('yt-formatted-string.ytd-channel-name a')
             if not channel_link:
                 raise AsyncException("Couldn't extract channel link")
 
-            # Extract channel ID from URL
+            # Extract channel title (display name)
+            channel_details["channel_title"] = await channel_link.inner_text() if channel_link else "Unknown"
+
+            # Extract channel handle from URL
             channel_url = await channel_link.get_attribute('href')
             channel_url = self._make_absolute_url(channel_url)
-            channel_id_match = re.search(r'/@([^/]+)', channel_url)
+            handle_match = re.search(r'/@([^/]+)', channel_url)
 
-            if channel_id_match:
-                channel_details["channel_id"] = urllib.parse.unquote(
-                    channel_id_match.group(1))
+            if handle_match:
+                channel_details["channel_handle"] = urllib.parse.unquote(handle_match.group(1))
 
             # Navigate to About page for more details
-            await page.goto(f"{channel_url}/about", wait_until='networkidle', timeout=IO_TIMEOUT)
+            await page.goto(f"{channel_url}/about", wait_until='networkidle', timeout=self.timeout)
 
             # Try to extract country
             try:
@@ -152,6 +268,66 @@ class YouTubeVideoScraper:
 
         return channel_details
 
+    async def _extract_unlisted_status(self, page):
+        """
+        Extract whether a YouTube video is unlisted by checking for the "Unlisted" badge.
+        
+        :param Page page: Playwright page object
+        :returns bool: True if video is unlisted, False otherwise
+        """
+        try:
+            # Check for unlisted badge - it typically appears in the video metadata area
+            unlisted_selectors = [
+                # Primary selector for unlisted badge
+                'ytd-badge-supported-renderer[aria-label*="Unlisted"]',
+                'ytd-badge-supported-renderer:has-text("Unlisted")',
+                # Alternative selectors for unlisted status
+                'yt-formatted-string:has-text("Unlisted")',
+                '.badge:has-text("Unlisted")',
+                '[aria-label*="Unlisted"]',
+                # Sometimes it appears in the video info section
+                'ytd-video-primary-info-renderer :has-text("Unlisted")',
+                'ytd-video-secondary-info-renderer :has-text("Unlisted")',
+            ]
+            
+            for selector in unlisted_selectors:
+                try:
+                    element = await page.query_selector(selector)
+                    if element:
+                        # Double-check the text content contains "Unlisted"
+                        text_content = await element.inner_text()
+                        if "Unlisted" in text_content:
+                            logging.debug(f'Video is unlisted - found badge with selector: {selector}')
+                            return True
+                        
+                        # Also check aria-label for accessibility text
+                        aria_label = await element.get_attribute('aria-label')
+                        if aria_label and "Unlisted" in aria_label:
+                            logging.debug(f'Video is unlisted - found aria-label with selector: {selector}')
+                            return True
+                except Exception as e:
+                    logging.debug(f'Selector {selector} failed: {e}')
+                    continue
+            
+            # Additional check in the video description/info area
+            try:
+                # Look for unlisted indicator in the broader video info section
+                info_section = await page.query_selector('ytd-video-primary-info-renderer')
+                if info_section:
+                    info_text = await info_section.inner_text()
+                    if "Unlisted" in info_text:
+                        logging.debug('Video is unlisted - found in video info section')
+                        return True
+            except Exception as e:
+                logging.debug(f'Error checking video info section for unlisted status: {e}')
+            
+            logging.debug('Video is not unlisted')
+            return False
+            
+        except Exception as e:
+            logging.debug(f'Error extracting unlisted status: {e}')
+            return False
+    
     async def scrape_video_stats(self, video_id):
         """
         Scrape comprehensive statistics for a specific YouTube video.
@@ -173,15 +349,22 @@ class YouTubeVideoScraper:
             "dislikes": 0,
             "published_at": "Unknown",
             "upload_date": "Unknown",
-            "channel_name": "Unknown",
+            "channel_id": "Unknown",
+            "channel_title": "Unknown",
+            "channel_handle": "Unknown",
             "url": video_url,
             "thumbnail_url": "Unknown",
+            "is_unlisted": False,
         }
 
         try:
+            # Ensure browser is initialized
+            if not self.browser:
+                raise RuntimeError("Browser is not initialized. Use YouTubeVideoScraper as an async context manager (with statement).")
+            
             # Create a new page in new browser context
             page = await self.browser.new_page(locale='en-US')
-            page.set_default_timeout(IO_TIMEOUT)  
+            page.set_default_timeout(self.timeout)  
 
             # Navigate to the video page, wait for the page to fully load
             # wait_until='networkidle' waits till there are no more than 0 network connections for at least 500 milliseconds.
@@ -196,6 +379,13 @@ class YouTubeVideoScraper:
             
             # Give JavaScript more time to execute
             await asyncio.sleep(3)
+
+            # Extract unlisted status
+            try:
+                video_stats["is_unlisted"] = await self._extract_unlisted_status(page)
+            except Exception as e:
+                logging.debug(f'Could not extract unlisted status for video "{video_id}": {e}')
+                video_stats["is_unlisted"] = False
 
             # Extract video title
             try:
@@ -228,8 +418,13 @@ class YouTubeVideoScraper:
                         if not like_text:
                             like_text = await like_element.inner_text()
                         if like_text:
-                            match = re.search(r'\b\d+(?:\.\d+)?[KM]?\b', like_text)
-                            video_stats["likes"] = self._parse_count(match.group())
+                            # Extract all numbers from the text, including those with commas
+                            # Match patterns like "12,345", "567890", "1.2K", "1.5M"
+                            match = re.search(r'\b(\d{1,3}(?:,\d{3})*|\d+(?:\.\d+)?[KMB]?)\b', like_text)
+                            if match:
+                                # Remove commas before parsing
+                                count_str = match.group(1).replace(',', '')
+                                video_stats["likes"] = self._parse_count(count_str)
                             break
             except Exception as e:
                 logging.debug(f'Could not extract likes for video "{video_id}": {e}')
@@ -238,7 +433,6 @@ class YouTubeVideoScraper:
             # Extract comments count
             # Try to scroll down to make sure comments section is loaded
             try:
-
                 await page.wait_for_selector('#comments', timeout=5000)
                 await page.evaluate('''() => { window.scrollBy(0, 800); }''')
 
@@ -252,12 +446,17 @@ class YouTubeVideoScraper:
                     if comments_element:
                         comments_text = await comments_element.inner_text()
                         if comments_text:
-                            video_stats["comments"] = comments_text
-                            match = re.search(r'\b\d+(?:\.\d+)?[KM]?\b', comments_text)
+                            # Extract all numbers from the text, including those with commas
+                            # Match patterns like "10,449", "503047", "1.2K", "1.5M"
+                            match = re.search(r'\b(\d{1,3}(?:,\d{3})*|\d+(?:\.\d+)?[KMB]?)\b', comments_text)
                             if match:
-                                video_stats["comments"] = self._parse_count(match.group())
+                                # Remove commas before parsing
+                                count_str = match.group(1).replace(',', '')
+                                video_stats["comments"] = self._parse_count(count_str)
                             else:
-                                video_stats["comments"] = self._parse_count(comments_text.split()[0])
+                                # Fallback: try to extract first word and parse
+                                first_word = comments_text.split()[0].replace(',', '')
+                                video_stats["comments"] = self._parse_count(first_word)
                         break
                 
             except Exception as e:
@@ -276,25 +475,26 @@ class YouTubeVideoScraper:
                 date_element = page.locator('div#info yt-formatted-string.ytd-video-primary-info-renderer')
                 video_stats["published_at"] = await date_element.all_inner_texts() if date_element else "Unknown Date"
                 video_stats["published_at"] = parser.parse(" ".join(video_stats["published_at"]), fuzzy=True)
-            except Exception:
+            except Exception as e:
                 logging.debug(f'Could not extract publish date for video "{video_id}": {e}')
 
             # Extract duration from iso8601 into seconds
             video_stats["duration"] = await page.evaluate(
                 """document.querySelector('meta[itemprop=\"duration\"]').content""")
 
-            # Extract channel name
+            # Extract channel details (includes channel_id, channel_title, channel_handle)
             try:
-                channel_element = await page.query_selector('yt-formatted-string.ytd-channel-name a')
-                video_stats["channel_name"] = await channel_element.inner_text() if channel_element else "Unknown Channel"
-            except Exception:
-                logging.debug(f'Could not extract channel name for video "{video_id}": {e}')
-
-            # TODO: this is unstable
-            # Extract additional channel details
-            channel_details = await self._extract_channel_details(page)
-            if channel_details:
-                video_stats.update(channel_details)
+                channel_details = await self._extract_channel_details(page)
+                if channel_details:
+                    video_stats.update(channel_details)
+            except Exception as e:
+                logging.debug(f'Could not extract channel details for video "{video_id}": {e}')
+                # Fallback to basic channel name extraction
+                try:
+                    channel_element = await page.query_selector('yt-formatted-string.ytd-channel-name a')
+                    video_stats["channel_title"] = await channel_element.inner_text() if channel_element else "Unknown Channel"
+                except Exception as fallback_e:
+                    logging.debug(f'Could not extract basic channel name for video "{video_id}": {fallback_e}')
 
         except Exception as e:
             raise VideoError(video_id, f'Error scraping video "{video_id}"', exc=e)
@@ -303,7 +503,7 @@ class YouTubeVideoScraper:
             if page:
                 await page.close()
 
-        logging.debug(f"Scraped video: {video_stats['title']} ({video_stats['view_count']} views)\n", video_stats)
+        logging.debug(f"Scraped video {video_stats['video_id']}: {video_stats['title']} ({video_stats['view_count']} views)\n")
         return Video(**video_stats)
 
 
@@ -330,8 +530,9 @@ class YouTubeVideoScraper:
             "upload_date": "2023-04-13 00:00:00",
             "view_count": 4597725,
             "url": "https://www.youtube.com/watch?v=uuo2KqoJxsc",
-            "channel_id": "Godlife",
-            "channel_name": "GodLife.com",
+            "channel_id": "UCE2kA-abkzL1tdhmIpQYoEQ",
+            "channel_title": "GodLife.com",
+            "channel_handle": "Godlife",
 
             # TODO: Not implemented 👇👇👇
             "language_name": "Unknown",
@@ -366,10 +567,10 @@ class YouTubeVideoScraper:
                 return await pipeline.enqueue(asdict(video)), 0
 
             except Exception as e:
-                logging.debug(str(e))
+                logging.debug(f"Error scraping to pipeline, video {video_id}: {e}")
                 return await pipeline.enqueue(e.__dict__, is_error=True), -1
 
-        async def run_tasks(video_ids: [str]):
+        async def run_tasks(video_ids: list[str]):
             """ Scrape (with rate control) and save videos to the data pipeline  """
 
             async with DataPipeline(**pipeline_kwargs) as pipeline:
@@ -383,15 +584,19 @@ class YouTubeVideoScraper:
         return await run_tasks(video_ids)
 
 
-async def scrape_multiple_videos(video_ids, progress_callback=None, **pipeline_kwargs):
+async def scrape_multiple_videos(video_ids, progress_callback=None, **kwargs):
     """
     Scrape videos from YouTube website.
+    Returns results dict, with the scraped videos into `results['videos']`, 
+        errors into `results['errors']`
     """
 
     # Create scraper and scrape videos concurrently
-    async with YouTubeVideoScraper() as scraper:
+    scraper_kwargs, pipeline_kwargs = split_kwargs({'concurrency', 'max_per_second', 'timeout'}, kwargs)
+    async with YouTubeVideoScraper(**scraper_kwargs) as scraper:
 
         results = defaultdict(list)
+        video_ids = [Video.clean_video_id(v) for v in video_ids if Video.clean_video_id(v)]
         response = await scraper.scrape_multiple_videos(
             video_ids, progress_callback=progress_callback, **pipeline_kwargs)
 
@@ -405,38 +610,66 @@ async def scrape_multiple_videos(video_ids, progress_callback=None, **pipeline_k
 
 if __name__ == "__main__":
     """
-    Example usage: python lib/scraper.py
+    Scrape video_ids
     Watch for output file: data/youtube_video_stats.json
+    Runs with dry_run=False, instructing not to flush pieline to disk.
+
+    Example usage (ran from dir ytdt-api/)
+
+        # with options
+        PYTHONPATH=${PYTHONPATH}:. python lib/scraper.py data/video-ids-demo.csv \
+                --csv_output_path data/scraped_output.csv \
+                --ids_column yt_video_id \
+                --timeout 1000
+                --concurrency 10 \
+                --max_per_second 5 
+
+        # or demo data with default options
+        PYTHONPATH=${PYTHONPATH}:. python lib/scraper.py 
+
     """
 
-    # video IDs (replace with actual video IDs)
-    video_ids = [
+    arg_parser = argparse.ArgumentParser(description="Scrape video metadata from YouTube")
+    arg_parser.add_argument('csv_input_path', type=str, help='Input CSV file path with video IDs')
+    arg_parser.add_argument('--csv_output_path', type=str, help='Optional output CSV file path')
+    arg_parser.add_argument('--ids_column', type=str, default='yt_video_id', help="Column name containing video IDs")
+    arg_parser.add_argument('--timeout', type=int, default=IO_TIMEOUT, help="Scrape timeout in ms")
+    arg_parser.add_argument('--concurrency', type=int, default=IO_CONCURRENCY_LIMIT, help="Number of concurrent tasks")
+    arg_parser.add_argument('--max_per_second', type=int, default=IO_RATE_LIMIT, help="Max requests per second")
+    arg_parser.add_argument('--data_queue_limit', type=int, default=IO_BATCH_SIZE, help="Data queue limit for pipeline (items flushed to disk)")
+    arg_parser.add_argument('--dry_run', action='store_true', help="Run without saving to disk (dry run)")
+    arg_parser.add_argument('--json', action='store_true', help='Also saves a XLSX file')
+    args = arg_parser.parse_args()
 
-        # "Video unavailable"
-        "9eHseYggb-I",  # This video is private
-        "W7Tkx2oXIyk",  # This video is no longer available because the YouTube account associated with this video has been closed.
-
-        # These are okay
-        "uuo2KqoJxsc",
-        "UJfX-ZrDZmU",
-        "0_jC8Lg-oxY"
-    ]
+    dry_run = True
+    video_ids = load_video_ids_from_csv(args.csv_input_path, args.ids_column)
+    csv_output_path = args.csv_output_path or \
+        rename_file_with_extension(args.csv_input_path, suffix='scraped')
 
     pipeline_kwargs = {
-        "csv_output_path": f"data/video-ids-three-scraped-out.csv",
-        "name": f"Scrape videos with {IO_TIMEOUT}ms timeout",
-        "dry_run": True,
+        "name": f"Scrape videos with {args.timeout}ms timeout",
+        "csv_output_path": csv_output_path,
+        "data_queue_limit": args.data_queue_limit,
+        "dry_run": args.dry_run,
+    }
+
+    scraper_kwargs = {
+        "concurrency": args.concurrency,
+        "max_per_second": args.max_per_second,
+        "timeout": args.timeout
     }
 
     # progress callback
     async def print_progress(completed: int, current_video: str):
         print(f"Progress: {completed} videos scraped. Currently processing: {current_video}")
 
+    # Scrape videos to `results['videos']`, errors to `results['errors']`
     results = asyncio.run(scrape_multiple_videos(
-        video_ids, progress_callback=print_progress, **pipeline_kwargs))
+        video_ids, progress_callback=print_progress, **{**pipeline_kwargs, **scraper_kwargs}))
 
-    # optionally, save results to a JSON file
-    with open('../data/youtube_video_stats.json', 'w', encoding='utf-8-sig') as f:
-        print(json.dumps(results, indent=2))
-        json.dump(results, f, indent=2, ensure_ascii=False)
-
+    # Optionally save to JSON
+    if args.json and not args.dry_run:
+        json_output_path = rename_file_with_extension(csv_output_path, 'json')
+        logging.info(f'saving json file to: {json_output_path}')
+        with open(json_output_path, 'w', encoding='utf-8-sig') as f:
+            json.dump(results, f, indent=2, ensure_ascii=False, cls=DateTimeEncoder)
