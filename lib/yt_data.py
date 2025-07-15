@@ -43,7 +43,8 @@ def parse_video(item):
         published_at=item['snippet']['publishedAt'],
         upload_date=glom(item, 'recordingDetails.recordingDate', default=''),
         channel_id=glom(item, 'snippet.channelId', default=''),
-        channel_name=glom(item, 'snippet.channelTitle', default=''),
+        channel_title=glom(item, 'snippet.channelTitle', default=''),
+        channel_handle='',  # Not available in API v3, would need separate channel API call
         thumbnail_url=glom(item, 'snippet.thumbnails.default.url', default=''),
         duration=glom(item, 'contentDetails.duration', default=''),
         view_count=glom(item, 'statistics.viewCount', default='0'),

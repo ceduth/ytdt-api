@@ -306,7 +306,7 @@ class GA4Client:
         return [
             Dimension(name="dateHourMinute"),
             Dimension(name="customEvent:mediacomponentid"),
-            Dimension(name="languageCode"),
+            Dimension(name="customEvent:langid"),
             Dimension(name="countryId"),
             Dimension(name="sessionSource"),
             Dimension(name="sessionMedium"),

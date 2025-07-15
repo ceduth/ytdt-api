@@ -92,6 +92,15 @@ def parse_analytics(item, video_id, existing_video_data=None):
     # Use existing video data if provided, otherwise create minimal Video
     if existing_video_data:
         video_data = existing_video_data.copy()
+        
+        # Handle the field renaming for existing data if present
+        # Convert old field names to new ones if they exist
+        if 'channel_name' in video_data and 'channel_title' not in video_data:
+            video_data['channel_title'] = video_data.pop('channel_name')
+        if 'channel_id' in video_data and video_data['channel_id'] and not video_data['channel_id'].startswith('UC'):
+            # If channel_id looks like a handle, move it to channel_handle
+            video_data['channel_handle'] = video_data['channel_id']
+            video_data['channel_id'] = ''  # Will need to be filled elsewhere
     else:
         video_data = {
             'video_id': video_id,
@@ -100,6 +109,9 @@ def parse_analytics(item, video_id, existing_video_data=None):
             'upload_date': '',
             'language_code': '',
             'view_count': str(item.get('views', 0)),
+            'channel_id': '',
+            'channel_title': '',
+            'channel_handle': '',
         }
     
     # Update with analytics data, mapping to Video class fields
@@ -148,7 +160,10 @@ def parse_analytics(item, video_id, existing_video_data=None):
             published_at=video_data.get('published_at', ''),
             upload_date=video_data.get('upload_date', ''),
             language_code=video_data.get('language_code', ''),
-            view_count=str(item.get('views', 0))
+            view_count=str(item.get('views', 0)),
+            channel_id=video_data.get('channel_id', ''),
+            channel_title=video_data.get('channel_title', ''),
+            channel_handle=video_data.get('channel_handle', ''),
         )
         # Add analytics data as a dict to be handled by asdict
         video_dict = asdict(video)
