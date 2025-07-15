@@ -204,7 +204,7 @@ Eg. scrape 5 videos at once, with speed = 5 items/sec, erroring unresponsive ite
 ```shell 
 python lib/scraper.py data/video-ids-demo.csv \
     --ids_column yt_video_id \
-    --timeout 90000 \
+    --timeout 50000 \
     --concurrency 2 \
     --max_per_second 6 \
     --data_queue_limit 50 \

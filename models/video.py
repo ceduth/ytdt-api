@@ -1,4 +1,4 @@
-import os
+import re
 import isodate
 import logging
 from dataclasses import dataclass, \
@@ -50,7 +50,8 @@ class Video:
     url: str = ''
     thumbnail_url: str = ''
     channel_id: str = ''
-    channel_name: str = ''
+    channel_title: str = ''
+    channel_handle: str = ''
     language_name: str = ''
     country: str = ''
     is_unlisted: bool = False
@@ -139,3 +140,9 @@ class Video:
             return 0.0
         except (ValueError, TypeError):
             return 0.0
+
+    @classmethod
+    def clean_video_id(cls, text):
+        """Extract the first valid YouTube video ID (11 characters, letters, numbers, _ or -)"""
+        match = re.search(r'(?<!\w)[a-zA-Z0-9_-]{11}(?!\w)', text)
+        return match.group(0) if match else None
