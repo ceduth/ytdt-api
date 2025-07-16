@@ -118,17 +118,25 @@ if __name__ == "__main__":
 
     # all_dims = ['browser', 'deviceCategory', 'operatingSystem', 'screenResolution', 'city', ]
     all_dims = [
-        'mobileDeviceMarketingName',  
-        'mobileDeviceModel',         
-        'mobileDeviceBranding',   
-        'deviceModel',              
-        'operatingSystemWithVersion', 
-        'operatingSystemVersion',    
-        'screenResolution',        
-        'platformDeviceCategory',   
-        'appVersion'                
+        'dateHourMinute',         
+        'customEvent:mediacomponentid',   
+        'customEvent:languageid',                
+        'countryId', 
+        'sessionSource',    
+        'sessionMedium',        
+        'pageLocation',   
+        'eventName'
         ]
-    all_mets = ['sessions']
+    all_mets = [
+        "activeUsers", "sessions", "engagedSessions", 
+        "userEngagementDuration", "screenPageViews", 
+        "bounceRate", "engagementRate", "sessionsPerUser", "averageSessionDuration", "eventValue", 
+        "newUsers", "totalUsers", "customEvent:activity_completes", "customEvent:video_view_time", 
+        "customEvent:videostarts", "customEvent:videocomplete", "customEvent:button_click", 
+        "customEvent:link_click", "customEvent:download_media", "customEvent:download_queued", 
+        "customEvent:subscribe", "customEvent:value", "customEvent:processing_fee", 
+        "customEvent:video_percent_yt", "customEvent:video_view_time_yt"
+    ]
 
 
     # GA4 limits: max 9 dimensions, 10 metrics per report

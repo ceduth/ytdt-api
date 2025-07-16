@@ -263,8 +263,7 @@ class GA4Client:
             "pageTitle",
             "eventName",
             "customEvent:mediacomponentid",
-            "customEvent:langid",
-            "languageCode",
+            "customEvent:languageid",
             "userGender",
             "userAgeBracket"
         ]
@@ -307,7 +306,7 @@ class GA4Client:
         return [
             Dimension(name="dateHourMinute"),
             Dimension(name="customEvent:mediacomponentid"),
-            Dimension(name="customEvent:langid"),
+            Dimension(name="customEvent:languageid"),
             Dimension(name="countryId"),
             Dimension(name="sessionSource"),
             Dimension(name="sessionMedium"),
@@ -847,7 +846,7 @@ if __name__ == "__main__":
     start_date = "2023-03-01"
     end_date = "2023-07-16"  
     chunk_days = 10               # Chunk size in days (adjust based on data volume)
-    limit_rows = 100000            # Reduced from max. 100K for better reliability
+    limit_rows = 50000            # Reduced from max. 50K for better reliability
     
     # Specific events we're interested in
     # event_names = ['videostarts', 'session_start', 'first_visit']
@@ -1045,4 +1044,4 @@ if __name__ == "__main__":
     print("\n🎉 Enhanced GA4 extraction with metadata discovery completed!")
     
     # Optional: Clean up chunk files after successful completion
-    # client.cleanup_chunks()
+    client.cleanup_chunks()

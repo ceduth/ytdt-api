@@ -49,7 +49,7 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
     
     # Define columns that should be treated as strings (not numeric)
     string_columns = [
-        'dateHourMinute', 'customEvent:mediacomponentid', 'languageCode', 'customEvent:langid',
+        'dateHourMinute', 'customEvent:mediacomponentid', 'customEvent:languageid',
         'countryId', 'sessionSource', 'sessionMedium', 'pageLocation', 'eventName'
     ]
     
