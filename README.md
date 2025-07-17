@@ -429,6 +429,19 @@ Example:
 available_videos.py data/wc_jfp_youtube_video_d.csv -u data/unavailable_videos.csv
 ```
 
+
+
+
+
+### Script `merge_csv.py`
+
+Merge CSV files vertically with deduplication:
+
+```shell
+python scripts/merge_csv.py scripts/merge_csv.py \ 
+  scraped.csv scraped-errors_scraped.csv unique_video_ids_scraped.csv
+```
+
 ## Deploy
 
 

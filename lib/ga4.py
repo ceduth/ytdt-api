@@ -1,11 +1,11 @@
 """
-GA4 Data Extraction with date range chunking strategy + Dimensions/Metrics Discovery
-===================================================================================
+GA4 Data Extraction with date range chunking strategy
+=====================================================
 
 GA4 Data Extraction with 8 prioritized dimensions (+ eventName filtering) 
 with intelligent metric batching and pagination support. 
 
-NEW: Added complete dimensions and metrics discovery capabilities:
+Dimensions and metrics discovery capabilities:
 - List all available dimensions and metrics
 - Search and filter dimensions/metrics by keyword
 - Export metadata to CSV for analysis
@@ -23,8 +23,16 @@ pip install google-analytics-data google-auth pandas
 
 🎯 Usage:
 
-    python ga4.py
+    export PYTHONPATH=$PYTHONPATH:. 
 
+    # Extract comprehensive report with date range chunking
+    python lib/ga4.py --property-id 320198532 --start-date 2023-03-01 --end-date 2023-07-16 \
+        --output-csv data/ga4_comprehensive.csv --cleanup-chunks
+
+    # Extract missing data in smaller chunks
+    python lib/ga4.py --property-id 320198532 --start-date 2023-03-31 --end-date 2023-04-09 \
+        --output-csv data/ga4_missing.csv --chunk-days 1 --cleanup-chunks
+    
     -- 
 
     from lib.ga4 import GA4Client
@@ -35,8 +43,49 @@ pip install google-analytics-data google-auth pandas
     session_dims = client.search_dimensions_and_metrics("session")
     
     # Extract data
-    df = client.get_comprehensive_report(start_date, end_date, event_names, limit_rows=1000, get_all_data=False)
+    df = client.get_report(start_date, end_date, event_names, limit_rows=1000, get_all_data=False)
     client.save_to_csv(df, "output.csv")
+
+    # Search for session dimensions
+    print("\n🔍 Session-related dimensions and metrics:")
+    session_items = client.search_dimensions_and_metrics("session")
+    if len(session_items) > 0:
+        print(session_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
+        session_items.to_csv("data/ga4_session_items.csv", index=False)
+        print(f"   💾 Exported {len(session_items)} session items to data/ga4_session_items.csv")
+
+    # Search for user dimensions  
+    print("\n🔍 User-related dimensions and metrics:")
+    user_items = client.search_dimensions_and_metrics("user")
+    if len(user_items) > 0:
+        print(user_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
+        user_items.to_csv("data/ga4_user_items.csv", index=False)
+        print(f"   💾 Exported {len(user_items)} user items to data/ga4_user_items.csv")
+
+    # Search for video-related items
+    print("\n🔍 Video-related dimensions and metrics:")
+    video_items = client.search_dimensions_and_metrics("video")
+    if len(video_items) > 0:
+        print(video_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
+        video_items.to_csv("data/ga4_video_items.csv", index=False)
+        print(f"   💾 Exported {len(video_items)} video items to data/ga4_video_items.csv")
+
+    Search for event-related items
+    print("\n🔍 Event-related dimensions and metrics:")
+    event_items = client.search_dimensions_and_metrics("event")
+    if len(event_items) > 0:
+        print(event_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
+        event_items.to_csv("data/ga4_event_items.csv", index=False)
+        print(f"   💾 Exported {len(event_items)} event items to data/ga4_event_items.csv")
+
+    Get recommended dimensions and metrics
+    print("\n🎯 Recommended dimensions for comprehensive analysis:")
+    recommended_dims = client.get_recommended_dimensions_for_analysis()
+    print(f"   {recommended_dims}")
+
+    print("\n🎯 Recommended metrics for comprehensive analysis:")
+    recommended_metrics = client.get_recommended_metrics_for_analysis()
+    print(f"   {recommended_metrics}")
 
 📝 Doc:
     https://developers.google.com/analytics/devguides/reporting/data/v1/api-schema
@@ -56,7 +105,6 @@ import time
 import os
 import json
 from datetime import datetime, timedelta
-import re
 
 
 class GA4Client:
@@ -312,6 +360,7 @@ class GA4Client:
             Dimension(name="sessionMedium"),
             Dimension(name="pageLocation"),
             Dimension(name="eventName"),
+            Dimension(name="languageCode")
         ]
 
     def _get_all_metrics(self) -> List[Metric]:
@@ -444,7 +493,7 @@ class GA4Client:
         """Main method: Extract comprehensive GA4 report using date range chunking"""
         
         print(f"🚀 GA4 Chunked Extraction Strategy")
-        print(f"=" * 60)
+        print(f"=" * 75)
         print(f"📅 Overall date range: {start_date} to {end_date}")
         print(f"🎯 Events: {event_names}")
         print(f"📊 Chunk size: {chunk_days} days")
@@ -839,153 +888,159 @@ class GA4Client:
 
 
 if __name__ == "__main__":
+    import argparse
+    from utils.helpers import rename_file_with_extension
+
     
-    # Configuration
-    property_id = "320198532"
-    key_path = "./cru-ga4-prod-1-63a3434e5a2a.json"
-    start_date = "2023-03-01"
-    end_date = "2023-07-16"  
-    chunk_days = 10               # Chunk size in days (adjust based on data volume)
-    limit_rows = 50000            # Reduced from max. 50K for better reliability
+    # Set up argument parser
+    arg_parser = argparse.ArgumentParser(
+        description='GA4 Data Extraction with Metadata Discovery',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python ga4.py --property-id 320198532 --start-date 2023-03-01 --end-date 2023-07-16
+  python ga4.py --property-id 123456789 --start-date 2024-01-01 --end-date 2024-01-31 --skip-metadata
+  python ga4.py --property-id 320198532 --start-date 2023-03-01 --end-date 2023-07-16 --event-names videostarts session_start
+        """
+    )
     
-    # Specific events we're interested in
-    # event_names = ['videostarts', 'session_start', 'first_visit']
-    event_names = []
+    # Mandatory arguments
+    arg_parser.add_argument('--property-id', type=str, required=True, help='GA4 Property ID (required)')
+    arg_parser.add_argument('--start-date', type=str, required=True, help='Start date in YYYY-MM-DD format (required)')
+    arg_parser.add_argument('--end-date', type=str, required=True, help='End date in YYYY-MM-DD format (required)')
+    
+    # Optional arguments
+    arg_parser.add_argument('--key-path', type=str, default="./service-account.json",
+                        help='Path to GA4 service account JSON key file (default: ./service-account.json)')
+    arg_parser.add_argument('--chunk-days', type=int, default=10,
+                        help='Chunk size in days (default: 10)')
+    arg_parser.add_argument('--limit-rows', type=int, default=50000,
+                        help='Rows per request limit (default: 50000)')
+    arg_parser.add_argument('--event-names', type=str, nargs='*', default=[],
+                        help='Specific event names to filter (space-separated)')
+    arg_parser.add_argument('--skip-metadata', action='store_true',
+                        help='Skip metadata discovery and go straight to data extraction')
+    arg_parser.add_argument('--skip-extraction', action='store_true',
+                        help='Skip data extraction and only run metadata discovery')
+    arg_parser.add_argument('--cleanup-chunks', action='store_true',
+                        help='Clean up chunk files after successful completion')
+    arg_parser.add_argument('--output-csv', type=str, default="data/ga4.csv",
+                        help='Output file prefix (default: ga4)')
+    
+    # Parse arguments
+    args = arg_parser.parse_args()
+    
+    # Configuration from command line arguments
+    property_id = args.property_id
+    key_path = args.key_path
+    start_date = args.start_date
+    end_date = args.end_date
+    chunk_days = args.chunk_days
+    limit_rows = args.limit_rows
+    event_names = args.event_names
+
+    csv_metadata_path = rename_file_with_extension(args.output_csv, suffix="metadata")
+    csv_validation_path = rename_file_with_extension(args.output_csv, suffix="validation_results")
+    csv_event_summary_path = rename_file_with_extension(args.output_csv, suffix="event_summary")
+    
+    print("🔍 GA4 Metadata Discovery & Data Extraction")
+    print("=" * 75)
+    print(f"🔧 Configuration:")
+    print(f"   • Property ID: {property_id}")
+    print(f"   • Key Path: {key_path}")
+    print(f"   • Date Range: {start_date} to {end_date}")
+    print(f"   • Chunk Size: {chunk_days} days")
+    print(f"   • Row Limit: {limit_rows:,}")
+    print(f"   • Event Names: {event_names if event_names else 'All events'}")
+    print(f"   • Skip Metadata: {args.skip_metadata}")
+    print(f"   • Skip Extraction: {args.skip_extraction}")
+    print(f"   • Output CSV file path: {args.output_csv}")
     
     # Initialize client
     client = GA4Client(property_id, key_path)
 
-    print("🔍 GA4 Metadata Discovery & Data Extraction")
-    print("=" * 75)
-    
     try:
         # =============================================
-        # NEW: METADATA DISCOVERY AND EXPORT
+        # METADATA DISCOVERY AND EXPORT
         # =============================================
         
-        print("\n📋 Step 1: Discovering GA4 Metadata")
-        print("-" * 50)
-        
-        # Get complete overview
-        print("\n🔍 Getting complete metadata overview...")
-        metadata = client.list_all_dimensions_and_metrics()
-        
-        # Export metadata to CSV
-        print("\n💾 Exporting metadata to CSV...")
-        client.export_metadata_to_csv("data/ga4_complete_metadata.csv")
-        
-        # Get category summaries
-        print("\n📊 Dimensions by category:")
-        dim_categories = client.get_dimensions_by_category()
-        print(dim_categories.to_string(index=False))
-        
-        print("\n📊 Metrics by category:")
-        metric_categories = client.get_metrics_by_category()
-        print(metric_categories.to_string(index=False))
-        
-        # Search examples
-        print("\n🔍 Search Examples:")
-        
-        # Search for session dimensions
-        print("\n🔍 Session-related dimensions and metrics:")
-        session_items = client.search_dimensions_and_metrics("session")
-        if len(session_items) > 0:
-            print(session_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
-            # Export session items
-            session_items.to_csv("data/ga4_session_items.csv", index=False)
-            print(f"   💾 Exported {len(session_items)} session items to data/ga4_session_items.csv")
-        
-        # Search for user dimensions  
-        print("\n🔍 User-related dimensions and metrics:")
-        user_items = client.search_dimensions_and_metrics("user")
-        if len(user_items) > 0:
-            print(user_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
-            # Export user items
-            user_items.to_csv("data/ga4_user_items.csv", index=False)
-            print(f"   💾 Exported {len(user_items)} user items to data/ga4_user_items.csv")
-        
-        # Search for video-related items
-        print("\n🔍 Video-related dimensions and metrics:")
-        video_items = client.search_dimensions_and_metrics("video")
-        if len(video_items) > 0:
-            print(video_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
-            # Export video items
-            video_items.to_csv("data/ga4_video_items.csv", index=False)
-            print(f"   💾 Exported {len(video_items)} video items to data/ga4_video_items.csv")
-        
-        # Search for event-related items
-        print("\n🔍 Event-related dimensions and metrics:")
-        event_items = client.search_dimensions_and_metrics("event")
-        if len(event_items) > 0:
-            print(event_items[['type', 'api_name', 'ui_name', 'category']].head(10).to_string(index=False))
-            # Export event items
-            event_items.to_csv("data/ga4_event_items.csv", index=False)
-            print(f"   💾 Exported {len(event_items)} event items to data/ga4_event_items.csv")
-        
-        # Get recommended dimensions and metrics
-        print("\n🎯 Recommended dimensions for comprehensive analysis:")
-        recommended_dims = client.get_recommended_dimensions_for_analysis()
-        print(f"   {recommended_dims}")
-        
-        print("\n🎯 Recommended metrics for comprehensive analysis:")
-        recommended_metrics = client.get_recommended_metrics_for_analysis()
-        print(f"   {recommended_metrics}")
-        
-        # Validate current dimensions and metrics
-        print("\n✅ Validating current script dimensions and metrics:")
-        current_dims = [d.name for d in client._get_prioritized_dimensions()]
-        current_metrics = [m.name for m in client._get_all_metrics()]
-        
-        validation_result = client.validate_dimensions_and_metrics(current_dims, current_metrics)
-        
-        # Export validation results
-        validation_df = pd.DataFrame({
-            'type': ['dimension'] * len(current_dims) + ['metric'] * len(current_metrics),
-            'api_name': current_dims + current_metrics,
-            'status': ['valid' if d in validation_result['valid_dimensions'] else 'invalid' for d in current_dims] +
-                     ['valid' if m in validation_result['valid_metrics'] else 'invalid' for m in current_metrics]
-        })
-        validation_df.to_csv("data/ga4_validation_results.csv", index=False)
-        print(f"   💾 Validation results exported to data/ga4_validation_results.csv")
+        if not args.skip_metadata:
+            print("\n📋 Step 1: Discovering GA4 Metadata")
+            print("-" * 50)
+            
+            # Get complete overview
+            print("\n🔍 Getting complete metadata overview...")
+            metadata = client.list_all_dimensions_and_metrics()
+            
+            # Export metadata to CSV
+            print("\n💾 Exporting metadata to CSV...")
+            client.export_metadata_to_csv(csv_metadata_path)
+            
+            # Get category summaries
+            print("\n📊 Dimensions by category:")
+            dim_categories = client.get_dimensions_by_category()
+            print(dim_categories.to_string(index=False))
+            
+            print("\n📊 Metrics by category:")
+            metric_categories = client.get_metrics_by_category()
+            print(metric_categories.to_string(index=False))
+            
+            # Validate current dimensions and metrics
+            print("\n✅ Validating current script dimensions and metrics:")
+            current_dims = [d.name for d in client._get_prioritized_dimensions()]
+            current_metrics = [m.name for m in client._get_all_metrics()]
+            
+            validation_result = client.validate_dimensions_and_metrics(current_dims, current_metrics)
+            
+            # Export validation results
+            validation_df = pd.DataFrame({
+                'type': ['dimension'] * len(current_dims) + ['metric'] * len(current_metrics),
+                'api_name': current_dims + current_metrics,
+                'status': ['valid' if d in validation_result['valid_dimensions'] else 'invalid' for d in current_dims] +
+                         ['valid' if m in validation_result['valid_metrics'] else 'invalid' for m in current_metrics]
+            })
+            validation_df.to_csv(csv_validation_path, index=False)
+            print(f"   💾 Validation results exported to {csv_validation_path}")
         
         # =============================================
-        # EXISTING: DATA EXTRACTION
+        # DATA EXTRACTION
         # =============================================
         
-        print("\n📊 Step 2: Data Extraction")
-        print("-" * 50)
-        
-        # Get event counts summary for the specified period
-        print("\n📈 Getting event summary...")
-        event_summary = client.get_event_counts_summary(start_date, end_date)
-        if len(event_summary) > 0:
-            print(event_summary.head(20).to_string(index=False))
-            event_summary.to_csv("data/ga4_event_summary.csv", index=False)
-            print(f"💾 Event summary exported to data/ga4_event_summary.csv")
-        
-        print(f"\n🚀 Starting comprehensive data extraction...")
-        print(f"📅 Date Range: {start_date} to {end_date}")
-        print(f"🎯 Events: {event_names if event_names else 'All events'}")
-        print(f"📦 Chunk Size: {chunk_days} days")
-        print(f"🔄 Rows per request: {limit_rows:,}")
-        print("=" * 75)
-        
-        # Extract data using chunking strategy
-        comprehensive_df = client.get_report(
-            start_date=start_date,
-            end_date=end_date,
-            event_names=event_names,
-            chunk_days=chunk_days,
-            limit_rows=limit_rows,
-            save_chunks=True,      # Save individual chunks for recovery
-            resume_from_chunks=True  # Resume from existing chunks
-        )
-        
-        # Display results
-        client.print_sample(comprehensive_df)
-        
-        # Save final combined file
-        client.save_to_csv(comprehensive_df, "data/ga4_comprehensive_chunked_final.csv")
+        if not args.skip_extraction:
+            print("\n📊 Step 2: Data Extraction")
+            print("-" * 50)
+            
+            # Get event counts summary for the specified period
+            print("\n📈 Getting event summary...")
+            event_summary = client.get_event_counts_summary(start_date, end_date)
+            if len(event_summary) > 0:
+                print(event_summary.head(20).to_string(index=False))
+                event_summary.to_csv(csv_event_summary_path, index=False)
+                print(f"💾 Event summary exported to {csv_event_summary_path}")
+            
+            print(f"\n🚀 Starting comprehensive data extraction...")
+            print(f"📅 Date Range: {start_date} to {end_date}")
+            print(f"🎯 Events: {event_names if event_names else 'All events'}")
+            print(f"📦 Chunk Size: {chunk_days} days")
+            print(f"🔄 Rows per request: {limit_rows:,}")
+            print("=" * 75)
+            
+            # Extract data using chunking strategy
+            comprehensive_df = client.get_report(
+                start_date=start_date,
+                end_date=end_date,
+                event_names=event_names,
+                chunk_days=chunk_days,
+                limit_rows=limit_rows,
+                save_chunks=True,      # Save individual chunks for recovery
+                resume_from_chunks=True  # Resume from existing chunks
+            )
+            
+            # Display results
+            # client.print_sample(comprehensive_df)
+            
+            # Save final combined file with custom prefix
+            client.save_to_csv(comprehensive_df, args.output_csv)
         
         # =============================================
         # SUMMARY REPORT
@@ -993,43 +1048,43 @@ if __name__ == "__main__":
         
         print("\n📋 EXTRACTION SUMMARY REPORT")
         print("=" * 75)
-        print(f"✅ Metadata Discovery:")
-        print(f"   • Total available dimensions: {len(metadata[metadata['type'] == 'dimension'])}")
-        print(f"   • Total available metrics: {len(metadata[metadata['type'] == 'metric'])}")
-        print(f"   • Metadata exported to: data/ga4_complete_metadata.csv")
         
-        print(f"\n✅ Search Results Exported:")
-        print(f"   • Session items: data/ga4_session_items.csv")
-        print(f"   • User items: data/ga4_user_items.csv") 
-        print(f"   • Video items: data/ga4_video_items.csv")
-        print(f"   • Event items: data/ga4_event_items.csv")
+        if not args.skip_metadata:
+            print(f"✅ Metadata Discovery:")
+            print(f"   • Total available dimensions: {len(metadata[metadata['type'] == 'dimension'])}")
+            print(f"   • Total available metrics: {len(metadata[metadata['type'] == 'metric'])}")
+            print(f"   • Metadata exported to: {csv_metadata_path}")
+            
+            print(f"\n✅ Validation:")
+            print(f"   • Current script uses {len(validation_result['valid_dimensions'])} valid dimensions")
+            print(f"   • Current script uses {len(validation_result['valid_metrics'])} valid metrics")
+            if validation_result['invalid_dimensions'] or validation_result['invalid_metrics']:
+                print(f"   • ⚠️  Some invalid items found - check {csv_validation_path} for details")
         
-        print(f"\n✅ Data Extraction:")
-        if len(comprehensive_df) > 0:
-            print(f"   • Final dataset: {len(comprehensive_df):,} rows × {len(comprehensive_df.columns)} columns")
-            print(f"   • Date range: {start_date} to {end_date}")
-            print(f"   • Main export: data/ga4_comprehensive_chunked_final.csv")
-            print(f"   • Event summary: data/ga4_event_summary.csv")
-        else:
-            print(f"   • ⚠️  No data extracted")
-        
-        print(f"\n✅ Validation:")
-        print(f"   • Current script uses {len(validation_result['valid_dimensions'])} valid dimensions")
-        print(f"   • Current script uses {len(validation_result['valid_metrics'])} valid metrics")
-        if validation_result['invalid_dimensions'] or validation_result['invalid_metrics']:
-            print(f"   • ⚠️  Some invalid items found - check data/ga4_validation_results.csv")
+        if not args.skip_extraction:
+            print(f"\n✅ Data Extraction:")
+            if len(comprehensive_df) > 0:
+                print(f"   • Final dataset: {len(comprehensive_df):,} rows × {len(comprehensive_df.columns)} columns")
+                print(f"   • Date range: {start_date} to {end_date}")
+                print(f"   • Main export: {args.output_csv}")
+                print(f"   • Event summary: {csv_event_summary_path}")
+            else:
+                print(f"   • ⚠️  No data extracted")
         
         print(f"\n📁 All Generated Files:")
-        files_generated = [
-            "data/ga4_complete_metadata.csv",
-            "data/ga4_session_items.csv", 
-            "data/ga4_user_items.csv",
-            "data/ga4_video_items.csv",
-            "data/ga4_event_items.csv",
-            "data/ga4_validation_results.csv",
-            "data/ga4_event_summary.csv",
-            "data/ga4_comprehensive_chunked_final.csv"
-        ]
+        files_generated = []
+        
+        if not args.skip_metadata:
+            files_generated.extend([
+                csv_metadata_path,
+                csv_validation_path
+            ])
+        
+        if not args.skip_extraction:
+            files_generated.extend([
+                csv_event_summary_path,
+                args.output_csv
+            ])
         
         for file in files_generated:
             if os.path.exists(file):
@@ -1044,4 +1099,5 @@ if __name__ == "__main__":
     print("\n🎉 Enhanced GA4 extraction with metadata discovery completed!")
     
     # Optional: Clean up chunk files after successful completion
-    client.cleanup_chunks()
+    if args.cleanup_chunks:
+        client.cleanup_chunks()

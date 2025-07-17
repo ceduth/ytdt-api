@@ -30,7 +30,7 @@ def main():
         if 'video_id' not in scraped_errors.columns or 'video_id' not in first_file.columns:
             raise ValueError("One or both files are missing the 'video_id' column")
 
-        # Extract video_id values that are in scraped-errors.csv but not in first_file.csv
+        # Extract video_id values that are in first file but not in the second
         unique_video_ids = scraped_errors[~scraped_errors['video_id'].isin(first_file['video_id'])]['video_id']
 
         # Save the result to a new CSV file

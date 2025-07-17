@@ -5,11 +5,21 @@ This script cleans the GA4 data CSV file to ensure it can be imported into BigQu
 It handles numeric columns that may have formatting problems, replaces problematic values, and ensures
 all data types are compatible with BigQuery's requirements.
 
+0. Set up the environment
+
+```shell
+export PYTHONPATH=$PYTHONPATH:.
+```
+
 1. Run the script to clean the GA4 data
+
+```shell
+python scripts/clean_ga4_data_for_bigquery.py data/ga4_comprehensive_chunked_final.csv
+```
 
 2. Upload the cleaned CSV to Google Cloud Storage
 
-```bash
+```shell
 gsutil cp data/ga4_comprehensive_chunked_final_cleaned.csv \
     gs://jfp-temp/ga4_comprehensive_chunked_final_cleaned.csv
 ```
