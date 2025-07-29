@@ -361,11 +361,28 @@ python lib/yt_analytics.py data/video-ids-demo.csv \
 
 ### Script `ga4.py`
 
-Unnest Google Analytics 4 aggregated data according to 8 preset dimensions:
+Unnest aggregated GA4 data according to 8 preset dimensions:
 `dateHourMinute`, `customEvent:mediacomponentid`, `customEvent:langid`, `countryId`, `sessionSource`, `sessionMedium`, `pageLocation`, `eventName`.
 
 ```shell
-python lib/ga4.py
+
+# Step 1 - Pull GA4 daily reports
+mkdir -p data/ga4_reports && python lib/ga4.py
+
+# Step 2 - Merge daily reports
+python scripts/merge_csv.py data/ga4_reports/*.csv --no-dedup \
+    --output data/ga4_reports/ga4_merged_data.csv 
+
+# Step 3 - Optionally clean data types for N=BigQuery
+# python scripts/clean_ga4_data_for_bigquery.py data/ga4_reports/ga4_merged_data.csv
+
+# Step 4 - Load data into BigQuery
+LOAD DATA OVERWRITE `jfp-data-warehouse.data_sources.ga4_320198532`
+FROM FILES (
+  format = 'CSV',
+  uris = ['gs://jfp-temp/ga4_merged_data.csv'],
+  skip_leading_rows = 1
+);
 ```
 
 ### Script `clean_ga4_data_for_bigquery.py`

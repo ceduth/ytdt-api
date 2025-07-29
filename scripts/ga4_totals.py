@@ -97,40 +97,31 @@ if __name__ == "__main__":
     # GA4 limits: max 9 dimensions, 10 metrics per report
     dimensions = [
         "eventName",
-        "dateHourMinute",
+        # "dateHourMinute",
         "customEvent:mediacomponentid",
         "customEvent:languageid",
-        "pageLocation",
-        "sessionSource",
-        "sessionMedium",
-        "countryId"
+        # "pageLocation",
+        # "sessionSource",
+        # "sessionMedium",
+        # "countryId"
     ]
     metrics = [
-        "eventCount", "sessions", "engagedSessions", "activeUsers"
+        "eventCount", # "sessions", "engagedSessions", "activeUsers"
     ]
 
-    # Initialize the GA4 client
     client = GA4Client(property_id, key_path)
 
-    # Define date range
-    start_date = datetime.strptime("2023-03-01", "%Y-%m-%d")
-    end_date = datetime.strptime("2023-07-16", "%Y-%m-%d")
+    start_date, end_date = "2023-03-01", "2023-07-16"
+
     
-    # Iterate through each day
-    current_date = start_date
-    while current_date <= end_date:
-        date_str = current_date.strftime("%Y-%m-%d")
-        output_csv = f"data/ga4_simple/{date_str}.csv"
-        
-        report = client.get_report(
-            dimensions=dimensions,
-            metrics=metrics,
-            start_date=date_str,
-            end_date=date_str,
-            event_names=event_names,
-            limit=250000
-        )
-        
-        client.save_to_csv(report, output_csv)
-        
-        current_date += timedelta(days=1)
+    report = client.get_report(
+        dimensions=dimensions,
+        metrics=metrics,
+        start_date=start_date,
+        end_date=end_date,
+        event_names=event_names,
+        limit=250000
+    )
+    
+    client.save_to_csv(report, "data/ga4_totals.csv")
+    

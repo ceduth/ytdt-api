@@ -143,9 +143,9 @@ if __name__ == "__main__":
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python merge_csvs.py file1.csv file2.csv file3.csv
-  python merge_csvs.py *.csv --id-column user_id --output merged.csv
-  python merge_csvs.py data/*.csv --id-column video_id --output final_data.csv
+  python merge_csv.py file1.csv file2.csv file3.csv
+  python merge_csv.py *.csv --id-column video_id --output merged.csv
+  python merge_csv.py data/*.csv --id-column video_id --output final_data.csv
         """
     )
     

@@ -68,7 +68,7 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
         'eventValue', 'activeUsers', 'sessions', 'engagedSessions',
         'userEngagementDuration', 'screenPageViews', 'bounceRate',
         'engagementRate', 'sessionsPerUser', 'averageSessionDuration',
-        'newUsers', 'totalUsers'
+        'newUsers', 'totalUsers', 'eventCount'
     ]
     
     # Add custom event metrics, but exclude string columns
@@ -134,8 +134,8 @@ def clean_ga4_data_for_bigquery(csv_file_path, output_path=None):
     print(f"   📁 Output file: {output_path}")
     
     # Show sample of problematic columns
-    print(f"\n📊 Sample of eventValue column after cleaning:")
-    print(df['eventValue'].describe())
+    # print(f"\n📊 Sample of eventValue column after cleaning:")
+    # print(df['eventValue'].describe())
     
     return df
 
